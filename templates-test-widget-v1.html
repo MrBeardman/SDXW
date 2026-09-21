@@ -1,0 +1,136 @@
+<widget>
+
+    <!-- CONFIG -->
+    <script type="application/json" id="widget-config">
+        {
+			"hrid" : "templates-test-widget-v1",
+			"display" : "Templates Test Widget V1",
+			"description" : "...",
+			"category" : "Testing",
+			"type": "widget",
+			"layoutUnique" : false,
+			"icon" : "alert-box",
+			"iconColor" : "#FF8C00",
+			"options": [
+				{ "key": "title-color", "label": "Title Color", "type": "color", "default": "#213B33" },
+				{ "key": "description-color", "label": "Description Color", "type": "color", "default": "#213B33" },
+				{ "key": "background-image", "label": "Background Image", "type": "text", "default": "" }
+			]
+        }
+    </script>
+
+    <!-- STYLE -->
+    <style id="widget-styles">
+
+		@scope {
+
+			#widget-body {
+
+				display: flex;
+				flex-wrap: wrap;
+				gap: 15px;
+
+				.demo-card-link {
+					transition: zoom 0.5s;
+					zoom : 100%;
+				}
+
+				.demo-card-link:hover {
+					transition: zoom 0.5s;
+					zoom : 105%;
+				}
+
+				a {
+					text-decoration: none;
+				}
+
+				.card {
+
+					border-radius: var(--widget-border-radius);
+					padding: 20px;
+					height: 200px;
+					width: 400px;
+					background-color: #40666F;
+					background-size: cover;
+					background-position: center;
+					color: var(--widget-description-color);
+
+					.title {
+						color: var(--widget-title-color);
+					}
+				}
+			}
+		}
+
+    </style>
+
+    <!-- TAGS -->
+    <div id="widget-body">
+		<div id="demo-card" class="d-none">
+			<a template-link="link" target="_blank">
+				<div class="card" template-background-image="backgroundImage" template-class="flavor">
+					<h1 class="title" template-text="title">Title</h1>
+					<p class="description" template-text="description" template-visible="descriptionVisible">This is the description</p>
+				</div>
+			</a>
+		</div>
+    </div>
+
+    <!-- SCRIPT -->
+    <script id="widget-script">
+
+		(function () {
+
+			// Uses
+			const sdx = window.sdx;
+
+			// Widget
+			const widget = sdx.Widget.getInstance();
+
+			const demoData = [
+				{
+					title: "Test Card 1",
+					description: "Description the first",
+					descriptionVisible: true,
+					backgroundImage: "96371b13-8fec-489a-b994-1ca5fd041cac",
+					link: null,
+					flavor: "demo-card-plain"
+				},
+				{
+					title: "Test Card 2",
+					description: "Description the second",
+					descriptionVisible: false,
+					backgroundImage: "8fc9adc4-bdc8-4f74-a1f5-2f1b4348b7dc",
+					link: "https://www.jenomics.de",
+					flavor: "demo-card-link"
+				},
+				{
+					title: "Test Card 3",
+					description: "Description the last",
+					descriptionVisible: true,
+					backgroundImage: "d12d0825-d2dd-4d6d-bb67-7094557b1d47",
+					link: "https://www.sdx-app.com",
+					flavor: "demo-card-link"
+				}
+			];
+
+			const container = widget.findElement('#widget-body');
+			const template = widget.createTemplate('#demo-card');
+
+			// Simply appends the newly generated instances to the given container
+			template.append(demoData, container);
+
+			// This would allow you to do own js processing on the newly generated element
+			// template.process(demoData, function (tInst) {
+			// // do custom stuff
+			// container.append(tInst);
+			//});
+
+			// Call after all prep to get widget loaded
+			widget.ready();
+
+		})();
+
+    </script>
+
+</widget>

@@ -1,0 +1,135 @@
+<!--
+A divider line: horizontal or vertical, solid/dashed/dotted, thickness, color, length, alignment
+and spacing before/after. Every option is a CSS custom property read straight from CSS - no data
+attributes, no JS. All option labels are localized (en/de).
+//-->
+<widget>
+
+	<!-- CONFIG -->
+	<script type="application/json" id="widget-config">
+		{
+		"hrid": "divider-widget-v2",
+		"display": "Divider Widget V2",
+		"description": "A divider line - orientation, style, thickness, color, length, alignment, spacing.",
+		"category": "AI Examples/Basic",
+		"type": "widget",
+		"layoutUnique": false,
+		"icon": "minus",
+		"iconColor": "#96C21F",
+		"options": [
+			{
+				"key": "orientation",
+				"label": { "en": "Orientation", "de": "Orientierung" },
+				"type": "select",
+				"default": "horizontal",
+				"options": [
+					{ "label": { "en": "Horizontal", "de": "Horizontal" }, "value": "horizontal" },
+					{ "label": { "en": "Vertical", "de": "Vertikal" }, "value": "vertical" }
+				]
+			},
+			{
+				"key": "style",
+				"label": { "en": "Line Style", "de": "Linienstil" },
+				"type": "select",
+				"default": "solid",
+				"options": [
+					{ "label": { "en": "Solid", "de": "Durchgezogen" }, "value": "solid" },
+					{ "label": { "en": "Dashed", "de": "Gestrichelt" }, "value": "dashed" },
+					{ "label": { "en": "Dotted", "de": "Gepunktet" }, "value": "dotted" }
+				]
+			},
+			{ "key": "thickness", "label": { "en": "Thickness (px)", "de": "Stärke (px)" }, "type": "text", "default": "1" },
+			{ "key": "color", "label": { "en": "Color", "de": "Farbe" }, "type": "color", "default": "#DDDDDD" },
+			{ "key": "length", "label": { "en": "Length (% horizontal, px vertical)", "de": "Länge (% horizontal, px vertikal)" }, "type": "text", "default": "100" },
+			{
+				"key": "align",
+				"label": { "en": "Alignment", "de": "Ausrichtung" },
+				"type": "select",
+				"default": "start",
+				"options": [
+					{ "label": { "en": "Left", "de": "Links" }, "value": "start" },
+					{ "label": { "en": "Center", "de": "Mittig" }, "value": "center" },
+					{ "label": { "en": "Right", "de": "Rechts" }, "value": "end" }
+				]
+			},
+			{ "key": "spacing-before", "label": { "en": "Spacing before (px)", "de": "Abstand davor (px)" }, "type": "text", "default": "16" },
+			{ "key": "spacing-after", "label": { "en": "Spacing after (px)", "de": "Abstand danach (px)" }, "type": "text", "default": "16" }
+		]
+		}
+	</script>
+
+	<!-- STYLE -->
+	<style id="widget-styles">
+
+		@scope {
+
+			#widget-body {
+
+				/* A line shorter than 100% is a block, so text-align can't place it. Flex can -
+				   and start/center/end are valid justify-content keywords too, so the same select
+				   shape as the label/heading widgets flows straight in. */
+				display: flex;
+				justify-content: var(--widget-align);
+
+				/* bare numbers in the options, units appended here (see patterns.md).
+				   Horizontal: "before/after" = above/below. */
+				padding-block: calc(var(--widget-spacing-before) * 1px) calc(var(--widget-spacing-after) * 1px);
+
+				#divider {
+					/* Reset the UA <hr> look, then draw the line as ONE border side so the style
+					   select (solid/dashed/dotted) can flow straight into border-style. Width 0 on
+					   every side first, then only the drawn side gets the thickness. */
+					margin: 0;
+					border: 0 var(--widget-style) var(--widget-color);
+					border-top-width: calc(var(--widget-thickness) * 1px);
+					width: calc(var(--widget-length) * 1%);
+				}
+
+				/* Vertical: swap the drawn side and the axis the length/spacing apply to. The
+				   select value isn't a CSS keyword, so a style query switches the rules instead. */
+				@container style(--widget-orientation: vertical) {
+
+					/* Vertical: "before/after" = left/right */
+					padding-block: 0;
+					padding-inline: calc(var(--widget-spacing-before) * 1px) calc(var(--widget-spacing-after) * 1px);
+
+					#divider {
+						/* Length is px here, not %: the host gives the widget no definite height
+						   (its body is height:auto inside a 0-high content div), so a % height
+						   never resolves - confirmed live, see CHANGELOG rev3. */
+						width: 0;
+						height: calc(var(--widget-length) * 1px);
+						border-top-width: 0;
+						border-left-width: calc(var(--widget-thickness) * 1px);
+					}
+				}
+			}
+		}
+
+	</style>
+
+	<!-- TAGS -->
+	<!-- No loading/active/error state machine - synchronous and config-only (see patterns.md) -->
+	<div id="widget-body">
+		<hr id="divider">
+	</div>
+
+	<!-- SCRIPT -->
+	<script id="widget-script">
+
+		(function () {
+
+			// Uses
+			const sdx = window.sdx;
+
+			// Widget
+			const widget = sdx.Widget.getInstance();
+
+			// Nothing to wire - every option is consumed directly by the CSS above
+			widget.ready();
+
+		})();
+
+	</script>
+
+</widget>

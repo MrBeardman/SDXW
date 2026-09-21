@@ -1,0 +1,151 @@
+<!--
+A dropdown that acts as a view switcher: selecting an option shows its configured rows and
+hides every other configured row, via the confirmed cross-widget postMessage pattern (see
+overview-widget-v1 / architecture.md's "Cross-widget communication"). Options are author-typed
+"Label|rowId1+rowId2" pairs (+ joins multiple row ids for one option). Row ids need to be
+whatever the host's row-visibility listener expects - unconfirmed here, see this widget's
+CHANGELOG. All option labels are localized (en/de).
+//-->
+<widget>
+
+	<!-- CONFIG -->
+	<script type="application/json" id="widget-config">
+		{
+		"hrid": "dropdown-visibility-widget-v1",
+		"display": "Dropdown Visibility Widget V1",
+		"description": "A dropdown view switcher - shows one set of rows, hides the rest.",
+		"category": "AI Examples/Basic",
+		"type": "widget",
+		"layoutUnique": false,
+		"icon": "eye-arrow-right-outline",
+		"iconColor": "#96C21F",
+		"options": [
+			{ "key": "options-list", "label": { "en": "Options (Label|RowIds joined by +, comma-separated)", "de": "Optionen (Label|Zeilen-IDs mit + verbunden, kommagetrennt)" }, "type": "text", "default": "Overview|row-overview,Details|row-details,Pricing|row-pricing" },
+			{ "key": "default-option", "label": { "en": "Default option (matches a label above)", "de": "Standardoption (entspricht einem Label oben)" }, "type": "text", "default": "Overview" }
+		]
+		}
+	</script>
+
+	<!-- STYLE -->
+	<style id="widget-styles">
+
+		@scope {
+
+			#widget-body {
+
+				#dropdown {
+					padding: 8px 12px;
+					cursor: pointer;
+				}
+			}
+		}
+
+	</style>
+
+	<!-- TAGS -->
+	<!-- No loading/active/error state machine - synchronous and config-only (see patterns.md) -->
+	<div id="widget-body">
+		<select id="dropdown"></select>
+	</div>
+
+	<!-- SCRIPT -->
+	<script id="widget-script">
+
+		(function () {
+
+			// Uses
+			const sdx = window.sdx;
+
+			// Widget
+			const widget = sdx.Widget.getInstance();
+
+			widget.onLoad(function () {
+
+				const select = widget.findElement('#dropdown');
+				const defaultLabel = widget.getConfig('default-option').trim();
+
+				const entries = widget.getConfig('options-list')
+					.split(',')
+					.map(function (entry) {
+						const parts = entry.split('|');
+						return {
+							label: (parts[0] || '').trim(),
+							rows: (parts[1] || '').split('+')
+								.map(function (r) { return r.trim(); })
+								.filter(function (r) { return r !== ''; })
+						};
+					})
+					.filter(function (entry) {
+						return entry.label !== '' && entry.rows.length > 0;
+					});
+
+				// Every row id mentioned by any option, deduped - used to compute "hide" as
+				// "every configured row this option does NOT show", so options are mutually
+				// exclusive by default without the author having to list hides explicitly.
+				const allRows = entries.reduce(function (acc, entry) {
+					entry.rows.forEach(function (row) {
+						if (acc.indexOf(row) === -1) {
+							acc.push(row);
+						}
+					});
+					return acc;
+				}, []);
+
+				entries.forEach(function (entry) {
+
+					const option = document.createElement('option');
+
+					option.value = entry.label;
+					option.textContent = entry.label;
+
+					if (entry.label === defaultLabel) {
+						option.selected = true;
+					}
+
+					select.appendChild(option);
+				});
+
+				/**
+				 * Broadcasts the confirmed row-visibility message (see overview-widget-v1 /
+				 * architecture.md) for the given option's label - shows its rows, hides every
+				 * other configured row.
+				 * @param {String} label
+				 * @returns {undefined}
+				 */
+				function applySelection(label) {
+
+					const entry = entries.find(function (e) {
+						return e.label === label;
+					});
+
+					if (!entry) {
+						return;
+					}
+
+					const hide = allRows.filter(function (row) {
+						return entry.rows.indexOf(row) === -1;
+					});
+
+					window.postMessage({ type: 'widget-set-row-visibility', show: entry.rows, hide: hide }, '*');
+				}
+
+				select.addEventListener('change', function () {
+					applySelection(select.value);
+				});
+
+				// Apply the default selection immediately, so the page starts showing only
+				// the default view's rows rather than showing everything until the first
+				// manual change.
+				if (select.value) {
+					applySelection(select.value);
+				}
+			});
+
+			// Call after all prep to get widget loaded
+			widget.ready();
+
+		})();
+
+	</script>
+
+</widget>

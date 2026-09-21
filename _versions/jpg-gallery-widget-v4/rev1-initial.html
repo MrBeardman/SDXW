@@ -1,0 +1,372 @@
+<widget>
+
+	<!-- CONFIG -->
+	<script type="application/json" id="widget-config">
+		{
+		"hrid": "jpg-gallery-widget-v1",
+		"display": "JPG Gallery Widget V1",
+		"description": "Lists JPG files with a name search, thumbnail preview, owner and a download link.",
+		"category": "Files",
+		"type": "widget",
+		"layoutUnique": false,
+		"icon": "image-multiple-outline",
+		"iconColor": "#96C21F",
+		"options": [
+			{ "key": "accentColor", "label": "Accent color", "type": "color", "default": "#96C21F" },
+			{ "key": "logicalType", "label": "Content logicalType to query (blank = any)", "type": "text", "default": "" },
+			{ "key": "limit", "label": "Max files per extension", "type": "text", "default": "100" },
+			{ "key": "showOwner", "label": "Show file owner", "type": "boolean", "default": true }
+		]
+		}
+	</script>
+
+	<!-- L10N -->
+	<script type="application/json" id="widget-l10n">
+		{
+		"de" : {
+			"loading": "Wird geladen…",
+			"searchPlaceholder": "Nach Dateiname suchen…",
+			"noFilesFound": "Keine JPG-Dateien gefunden.",
+			"failedToLoad": "Dateien konnten nicht geladen werden.",
+			"noMatches": "Keine Treffer für \"$query\".",
+			"ownedBy": "Besitzer: $name",
+			"download": "Herunterladen",
+			"unknownOwner": "Unbekannt"
+		},
+		"en" : {
+			"loading": "Loading…",
+			"searchPlaceholder": "Search by file name…",
+			"noFilesFound": "No JPG files found.",
+			"failedToLoad": "Failed to load files.",
+			"noMatches": "No matches for \"$query\".",
+			"ownedBy": "Owner: $name",
+			"download": "Download",
+			"unknownOwner": "Unknown"
+		}
+		}
+	</script>
+
+	<!-- STYLE -->
+	<style id="widget-styles">
+
+		@scope {
+
+			#widget-body {
+
+				.jpg-toolbar {
+					margin-bottom: 12px;
+				}
+
+				.jpg-search {
+					width: 100%;
+					max-width: 320px;
+					padding: 10px 16px;
+					border: 1px solid rgba(0, 0, 0, 0.12);
+					border-radius: 999px;
+					background: var(--widget-default-background-color);
+					font: inherit;
+					font-size: 14px;
+				}
+
+				.jpg-search:focus {
+					outline: 2px solid var(--widget-accentColor);
+					border-color: transparent;
+				}
+
+				.jpg-grid {
+					display: grid;
+					grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+					gap: 14px;
+					padding: 5px;
+				}
+
+				.jpg-card {
+					border-radius: var(--widget-border-radius);
+					background: var(--widget-default-background-color);
+					overflow: hidden;
+					display: flex;
+					flex-direction: column;
+				}
+
+				.jpg-thumb {
+					display: block;
+					height: 150px;
+					background-size: cover;
+					background-position: center;
+					background-color: rgba(0, 0, 0, 0.06);
+				}
+
+				.jpg-body {
+					padding: 10px 12px;
+				}
+
+				.jpg-name {
+					margin: 0 0 4px;
+					font-size: 14px;
+					font-weight: 700;
+					word-break: break-word;
+				}
+
+				.jpg-owner {
+					margin: 0 0 8px;
+					font-size: 12px;
+					color: rgba(0, 0, 0, 0.55);
+				}
+
+				.jpg-download {
+					display: inline-flex;
+					align-items: center;
+					gap: 6px;
+					font-size: 13px;
+					font-weight: 600;
+					color: var(--widget-accentColor);
+					text-decoration: none;
+				}
+
+				.jpg-empty {
+					padding: 24px;
+					text-align: center;
+					color: rgba(0, 0, 0, 0.5);
+				}
+			}
+		}
+
+	</style>
+
+	<!-- TAGS -->
+	<div id="widget-body">
+
+		<!-- LOADING -->
+		<div widget-state="loading">Loading…</div>
+
+		<!-- ACTIVE -->
+		<div id="jpg-active" class="d-none" widget-state="active">
+			<div class="jpg-toolbar">
+				<input id="jpg-search" class="jpg-search" type="text" placeholder="Search by file name…">
+			</div>
+			<div id="jpg-grid" class="jpg-grid">
+				<div id="jpg-card-template" class="d-none">
+					<div class="jpg-card">
+						<a class="jpg-thumb" template-background-image="image" template-link="viewLink" target="_blank" rel="noopener"></a>
+						<div class="jpg-body">
+							<p class="jpg-name" template-text="name"></p>
+							<p class="jpg-owner" template-text="ownerLabel" template-visible="showOwner"></p>
+							<a class="jpg-download" template-link="downloadLink" download>
+								<i class="mdi mdi-download" aria-hidden="true"></i>
+								<span template-text="downloadLabel"></span>
+							</a>
+						</div>
+					</div>
+				</div>
+			</div>
+			<div id="jpg-empty" class="jpg-empty d-none"></div>
+		</div>
+
+		<!-- ERROR -->
+		<div class="d-none widget-error" widget-state="error">
+			<small>An error occured in widget</small>
+			<h2 widget-error-message></h2>
+		</div>
+	</div>
+
+	<!-- SCRIPT -->
+	<script id="widget-script">
+
+		(function () {
+
+			// Uses
+			const sdx = window.sdx;
+			const api = sdx.api;
+
+			// Widget
+			const widget = sdx.Widget.getInstance();
+
+			// Globals
+			const JPG_NAME_PATTERNS = ['%.jpg', '%.jpeg'];
+			const JPG_MIME_TYPE = 'image/jpeg';
+
+			/**
+			 * Runs one contentName LIKE query for a single file name pattern
+			 * @param {String} pattern The SQL LIKE pattern, e.g. '%.jpg'
+			 * @param {String} logicalType Optional logicalType to narrow the query, '' for any
+			 * @param {Number} limit Max results for this pattern
+			 * @returns {Promise} The matching contents
+			 */
+			function _queryByNamePattern(pattern, logicalType, limit)
+			{
+				const dlApi = api.getApi();
+				const query = {contentName: pattern, contentHidden: false, limit: limit};
+
+				if (logicalType) {
+					query.contentLogicalType = logicalType;
+				}
+
+				return dlApi.contents.find(query).then(function (response) {
+					return (response && response.result) || [];
+				});
+			}
+
+			/**
+			 * Queries every JPG file the current user can access, across all spaces.
+			 * @returns {Promise} The matching, deduped jpg contents
+			 */
+			async function _loadJpgFiles()
+			{
+				const logicalType = widget.getConfig('logicalType');
+				const limit = Number(widget.getConfig('limit')) || 100;
+
+				const batches = await Promise.all(
+					JPG_NAME_PATTERNS.map(function (pattern) {
+						return _queryByNamePattern(pattern, logicalType, limit);
+					})
+				);
+
+				const merged = api.keepLatestVersions([].concat.apply([], batches));
+
+				return merged.filter(function (content) {
+					return content.mimeType === JPG_MIME_TYPE;
+				});
+			}
+
+			/**
+			 * Best-effort lookup of display names for the given user ids.
+			 * @param {Array} userIds Unique user ids to resolve
+			 * @returns {Promise} Map of id -> display name, unresolved ids simply missing
+			 */
+			async function _loadOwnerNames(userIds)
+			{
+				const dlApi = api.getApi();
+				const names = {};
+
+				if (!userIds.length) {
+					return names;
+				}
+
+				try {
+
+					const users = await dlApi.users.getMany(userIds);
+
+					(users || []).forEach(function (user) {
+						names[user.id] = user.display || user.name || user.email;
+					});
+
+				} catch (error) {
+
+					await Promise.all(userIds.map(async function (id) {
+						try {
+							const user = await dlApi.users.get(id);
+							names[id] = user && (user.display || user.name || user.email);
+						} catch (innerError) {
+							// leave unresolved, template falls back to the unknown-owner label
+						}
+					}));
+				}
+
+				return names;
+			}
+
+			/**
+			 * Turns raw contents into template data
+			 * @param {Array} contents The jpg contents
+			 * @param {Object} ownerNames Map of userId -> display name
+			 * @param {Boolean} showOwner Whether the owner line should render at all
+			 * @returns {Array} The prepared entries, sorted by file name
+			 */
+			function _prepareData(contents, ownerNames, showOwner)
+			{
+				const dlApi = api.getApi();
+				const downloadLabel = widget.resolveL10N('download', {});
+				const unknownOwner = widget.resolveL10N('unknownOwner', {});
+
+				return contents.map(function (content) {
+
+					const ownerName = ownerNames[content.ownedBy] || unknownOwner;
+
+					return {
+						name: content.name,
+						image: content.id,
+						viewLink: dlApi.contents.streamAsGetURL(content.id, true),
+						downloadLink: dlApi.contents.streamAsGetURL(content.id, false),
+						ownerLabel: widget.resolveL10N('ownedBy', {name: ownerName}),
+						downloadLabel: downloadLabel,
+						showOwner: showOwner,
+						searchName: String(content.name || '').toLowerCase()
+					};
+				}).sort(function (first, second) {
+					return String(first.name).localeCompare(String(second.name));
+				});
+			}
+
+			/**
+			 * Wires the search box as a purely client-side filter over the already-rendered
+			 * cards - deliberately separate from the jpg content query above, no network calls
+			 * @param {Array} data The prepared entries, same order as cardRefs
+			 * @param {Array} cardRefs The rendered card elements, same order as data
+			 * @returns {undefined}
+			 */
+			function _wireSearch(data, cardRefs)
+			{
+				const input = widget.findElement('#jpg-search');
+				const empty = widget.findElement('#jpg-empty');
+
+				input.placeholder = widget.resolveL10N('searchPlaceholder', {});
+
+				input.addEventListener('input', function () {
+
+					const query = input.value.trim().toLowerCase();
+					let visibleCount = 0;
+
+					cardRefs.forEach(function (card, index) {
+
+						const matches = data[index].searchName.indexOf(query) > -1;
+
+						card.classList.toggle('d-none', !matches);
+
+						if (matches) {
+							visibleCount++;
+						}
+					});
+
+					empty.textContent = widget.resolveL10N('noMatches', {query: input.value});
+					empty.classList.toggle('d-none', visibleCount > 0);
+				});
+			}
+
+			widget.onLoad(async function () {
+
+				widget.findElement('[widget-state="loading"]').textContent = widget.resolveL10N('loading', {});
+
+				const showOwner = widget.getConfig('showOwner') === 'true';
+				const contents = await _loadJpgFiles();
+
+				if (!contents.length) {
+					throw new Error(widget.resolveL10N('noFilesFound', {}));
+				}
+
+				const ownerIds = showOwner
+					? contents.map(function (content) { return content.ownedBy; }).filter(Boolean)
+					: [];
+
+				const ownerNames = showOwner ? await _loadOwnerNames(ownerIds) : {};
+				const data = _prepareData(contents, ownerNames, showOwner);
+
+				const container = widget.findElement('#jpg-grid');
+				const template = widget.createTemplate('#jpg-card-template');
+				const cardRefs = [];
+
+				template.process(data, function (cardInstance) {
+					container.append(cardInstance);
+					cardRefs.push(cardInstance);
+				});
+
+				_wireSearch(data, cardRefs);
+			});
+
+			// Call after all prep to get widget loaded
+			widget.ready();
+
+		})();
+
+	</script>
+
+</widget>

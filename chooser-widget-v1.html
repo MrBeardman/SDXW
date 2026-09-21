@@ -1,0 +1,155 @@
+<widget>
+
+	<!-- CONFIG -->
+	<script type="application/json" id="widget-config">
+		{
+		"hrid": "project-chooser-widget-v1",
+		"display": "Project Chooser Widget V1",
+		"description": "Lets the investor choose which project the charts on the page show",
+		"category": "PV",
+		"type": "widget",
+		"layoutUnique": true,
+		"icon": "form-dropdown",
+		"iconColor": "#292ce3",
+		"options": [
+			{ "key": "accentColor", "label": "Accent color", "type": "color", "default": "#96C21F" }
+		]
+		}
+	</script>
+
+	<script type="application/json" id="widget-l10n">
+		{
+		"de" : {
+			"loading": "Wird geladen…",
+			"allProjects": "Alle Projekte"
+		},
+		"en" : {
+			"loading": "Loading…",
+			"allProjects": "All projects"
+		}
+		}
+	</script>
+
+    <style id="widget-styles">
+
+		@scope {
+
+			#widget-body {
+
+                #chooser-select {
+					position: static;
+				}
+
+                #chooser-select .pv-select-menu {
+					min-width: 230px;
+					right: auto;
+					left: 0;
+				}
+
+				[widget-state="loading"] {
+					padding: 14px 22px;
+				}
+			}
+		}
+
+	</style>
+
+	<!-- TAGS -->
+	<div id="widget-body">
+
+		<!-- LOADING -->
+		<div widget-state="loading">Loading…</div>
+
+		<!-- ACTIVE -->
+		<div class="d-none" widget-state="active">
+			<div id="chooser-select" class="pv-select">
+				<button type="button" class="pv-select-button">
+					<span pv-select-label></span>
+					<i class="mdi mdi-chevron-down" aria-hidden="true"></i>
+				</button>
+				<ul class="pv-select-menu" role="listbox"></ul>
+			</div>
+		</div>
+
+		<!-- ERROR -->
+		<div class="d-none widget-error" widget-state="error">
+			<small>An error occured in widget</small>
+			<h2 widget-error-message></h2>
+		</div>
+	</div>
+
+	<!-- SCRIPT -->
+	<script id="widget-script">
+
+		(function () {
+
+			// Uses
+			const sdx = window.sdx;
+			const pvInvestor = sdx.pvInvestor;
+            const pvPerformance = sdx.pvPerformance;
+            const pvSelect = sdx.pvSelect;
+
+			// Globals
+			const ALL_PROJECTS_VALUE = '';
+
+			// Widget
+			const widget = sdx.Widget.getInstance();
+
+			/**
+			 * Builds the options of the chooser: every project the investor holds,
+			 * preceded by the entry that selects them all
+			 * @param {Object} investor The loaded investor
+			 * @returns {Array} The options
+			 */
+			function _buildOptions(investor)
+			{
+				const options = [{text: widget.resolveL10N('allProjects', {}), value: ALL_PROJECTS_VALUE}];
+				const projects = investor.projects.slice();
+
+				projects.sort(function (first, second) {
+					return String(first.title).localeCompare(String(second.title));
+				});
+
+				for (const project of projects) {
+					options.push({text: project.title, value: project.spaceId});
+				}
+
+				return options;
+			}
+
+			/**
+			 * Fills the chooser and preselects whatever the widgets are showing
+			 * @param {Array} options The options to render
+			 * @returns {undefined}
+			 */
+			function _renderChooser(options)
+			{
+				const selection = pvPerformance.getSelection();
+
+				pvSelect.fill(
+					widget.findElement('#chooser-select'),
+					options,
+					selection === null ? ALL_PROJECTS_VALUE : selection[0],
+					function (value) {
+						pvPerformance.setSelection(value === ALL_PROJECTS_VALUE ? null : [value]);
+					}
+				);
+			}
+
+			widget.onLoad(async function () {
+
+				widget.findElement('[widget-state="loading"]').textContent = widget.resolveL10N('loading', {});
+
+				const investor = await pvInvestor.loadInvestorCached();
+
+				_renderChooser(_buildOptions(investor));
+			});
+
+			// Call after all prep to load the widget
+			widget.ready();
+
+		})();
+
+	</script>
+
+    </widget>

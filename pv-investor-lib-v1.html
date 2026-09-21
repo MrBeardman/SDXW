@@ -1,0 +1,494 @@
+<widget>
+
+	<!-- CONFIG -->
+	<script type="application/json" id="widget-config">
+		{
+		"hrid": "pv-investor-lib-v1",
+		"display": "PV Investor Library V1",
+		"description": "Loads the projects, shares and performance of the current investor as one object",
+		"category": "PV",
+		"layoutUnique": true,
+		"type": "library",
+		"loadIndex": 30,
+		"icon": "solar-power-variant-outline",
+		"iconColor": "#96C21F"
+		}
+	</script>
+
+	<!-- SCRIPT -->
+	<script id="widget-script">
+
+		(function () {
+
+			// Uses
+			const sdx = window.sdx;
+			const api = sdx.api;
+			const xlsx = sdx.xlsx;
+			const number = sdx.number;
+            const date = sdx.date;
+            const dlApi = api.getApi();
+
+			// Package
+			const pvInvestor = sdx.pvInvestor = {};
+
+			// Globals
+			const PROJECT_LOGICAL_TYPE = 'project-data';
+			const PERFORMANCE_LOGICAL_TYPE = 'performance-data';
+			const DETAILS_SHEET = 'details';
+			const INVESTORS_SHEET = 'investors';
+			const CURRENT_DAY_SHEET = 'currentDay';
+			const PROJECT_LIMIT = 100;
+			const SESSION_STORE_KEY = 'sdx.pvInvestor';
+			const CACHE_MAX_AGE_MS = 15 * 60 * 1000;
+            const WEATHER_BACKGROUND_LOGICAL_TYPE = 'weather-background-image';
+			const WEATHER_CONDITION_ATTRIBUTE = 'sdx.weather.condition';
+			const WEATHER_ACTIVE_ATTRIBUTE = 'sdx.weather.api.active';
+			const DEFAULT_CONDITION_KEY = '_default';
+			const WEATHER_BACKGROUND_LIMIT = 50;
+			const SPACE_LIMIT = 100;
+            const DAILY_SHEET = 'daily';
+            const WEATHER_LATITUDE_ATTRIBUTE = 'sdx.weather.api.latitude';
+			const WEATHER_LONGITUDE_ATTRIBUTE = 'sdx.weather.api.longitude';
+            const SPACE_BACKGROUND_LOGICAL_TYPE = 'space-background-image';
+
+            const WEATHER_ICONS = {
+				clear: 'mdi-white-balance-sunny',
+				clouds: 'mdi-weather-cloudy',
+				rain: 'mdi-weather-rainy',
+				drizzle: 'mdi-weather-partly-rainy',
+				thunderstorm: 'mdi-weather-lightning',
+				snow: 'mdi-weather-snowy-heavy',
+				atmosphere: 'mdi-weather-fog'
+			};
+
+            /**
+			 * Normalises a weather condition, so the file and the image attributes match
+			 * @param {String} condition The condition as written anywhere
+			 * @returns {String} The key it is stored under
+			 */
+			function _conditionKey(condition)
+			{
+				return String(condition || '').trim().toLowerCase();
+			}
+
+			/**
+			 * Turns the current day sheet into today's totals, curve and weather
+			 * @param {Array} currentDayRows The rows of the current day sheet
+			 * @returns {Object} Today
+			 */
+			function _buildToday(currentDayRows)
+			{
+				const series = [];
+				let income = 0;
+				let latestRow = null;
+				let latestHour = null;
+
+				for (const measurement of currentDayRows) {
+
+					income += Number(measurement.revenue) || 0;
+
+					const hour = date.toHours(measurement.time);
+
+					if (hour === null) {
+						continue;
+					}
+
+					if (latestHour === null || hour >= latestHour) {
+						latestHour = hour;
+						latestRow = measurement;
+					}
+
+					const cumulatedPower = Number(measurement.power);
+
+					if (isFinite(cumulatedPower)) {
+						series.push({hour: hour, produced: cumulatedPower});
+					}
+				}
+
+				series.sort(function (firstPoint, secondPoint) {
+					return firstPoint.hour - secondPoint.hour;
+				});
+
+				return {
+					// the worker writes power already cumulated, so the last point is the day's total
+					produced: series.length ? series[series.length - 1].produced : 0,
+					income: income,
+					series: series,
+					weather: latestRow
+						? {
+							temp: latestRow.temp,
+							// the worker writes conditions capitalised, so normalise here
+							weather: _conditionKey(latestRow.weather),
+							wind: latestRow.wind
+						}
+						: null
+				};
+			}
+
+            /**
+			 * Turns the daily sheet into one entry per day
+			 * @param {Array} dailyRows The rows of the daily sheet
+			 * @returns {Array} The days
+			 */
+			function _buildDays(dailyRows)
+			{
+				const days = [];
+
+				for (const dailyRow of dailyRows) {
+
+					const dayDate = date.toDate(dailyRow.date);
+
+					if (dayDate === null) {
+						continue;
+					}
+
+					days.push({
+						key: date.toDayKey(dayDate),
+						day: dayDate.getDate(),
+						energy: Number(dailyRow.power) || 0,
+						revenue: Number(dailyRow.revenue) || 0
+					});
+				}
+
+				return days;
+			}
+
+			/**
+			 * Reads one project file into a project with its shares
+			 * @param {Object} content The content as returned by a query
+			 * @returns {Promise} The project
+			 */
+			async function _loadProject(content)
+			{
+				const workbook = await xlsx.Workbook.loadInstance(content.id);
+				const details = workbook.getSheetAsMap(DETAILS_SHEET);
+
+				const project = {
+					contentId: content.id,
+					spaceId: content.spaceId,
+					title: details.title,
+					description: details.description,
+					capacity: details.capacity,
+					annualOutput: details.annualOutput,
+					investmentValue: details.investmentValue,
+					state: details.state,
+                    startDate: details.startDate,
+					totalAmount: 0,
+                    // a super admin that is not listed sees the full project numbers, everyone else nothing
+					myShare: api.isSuperAdmin() ? 1 : 0,
+					shares: [],
+					today: null,
+                    days: []
+				};
+
+				for (const investorRow of workbook.getSheetAsJson(INVESTORS_SHEET)) {
+
+					const amount = Number(investorRow.investmentAmount) || 0;
+
+					project.totalAmount += amount;
+
+					project.shares.push({
+						investorId: investorRow.investorId,
+						amount: amount,
+						relativeAmount: 0,
+						projectSpaceId: project.spaceId,
+						projectTitle: project.title
+					});
+				}
+
+				for (const share of project.shares) {
+					share.relativeAmount = number.safeDivide(share.amount, project.totalAmount);
+				}
+
+				return project;
+			}
+
+			/**
+			 * Adds the performance of its space to a project
+			 * @param {Object} project The project to extend
+			 * @returns {Promise} Resolved once the project was extended
+			 */
+			async function _addPerformance(project)
+			{
+				const contents = await api.findLatest({
+					contentLogicalType: PERFORMANCE_LOGICAL_TYPE,
+					contentHidden: false,
+					spaceId: project.spaceId,
+					limit: 1
+				});
+
+				if (!contents.length) {
+					return;
+				}
+
+				const workbook = await xlsx.Workbook.loadInstance(contents[0].id);
+
+				project.days = _buildDays(workbook.getSheetAsJson(DAILY_SHEET));
+				project.today = _buildToday(workbook.getSheetAsJson(CURRENT_DAY_SHEET));
+			}
+
+             /**
+			 * Reads all project files with their performance
+			 * @returns {Promise} The projects
+			 */
+			async function _loadProjects()
+			{
+				const contents = await api.findByLogicalType(PROJECT_LOGICAL_TYPE, PROJECT_LIMIT);
+				const projects = [];
+
+				for (const content of contents) {
+
+					try {
+
+						const project = await _loadProject(content);
+
+						if (!project.title) {
+							continue;
+						}
+
+						await _addPerformance(project);
+
+						projects.push(project);
+
+					} catch (error) {
+						console.error('Failed to read project file', content.id, error);
+					}
+				}
+
+				return projects;
+			}
+
+            /**
+			 * Loads the background images of the weather conditions.
+			 * An image without a condition serves as the fallback for everything else
+			 * @returns {Promise} The conditions mapped onto content ids
+			 */
+			async function _loadWeatherBackgrounds()
+			{
+				const backgrounds = {};
+				const contents = await api.findByLogicalType(WEATHER_BACKGROUND_LOGICAL_TYPE, WEATHER_BACKGROUND_LIMIT);
+
+				for (const content of contents) {
+
+					const condition = _conditionKey((content.customData || {})[WEATHER_CONDITION_ATTRIBUTE]);
+
+					if (condition === '') {
+						backgrounds[DEFAULT_CONDITION_KEY] = content.id;
+						continue;
+					}
+
+					backgrounds[condition] = content.id;
+				}
+
+				return backgrounds;
+			}
+
+			/**
+			 * Marks the projects whose space has the weather api switched on, and takes over
+			 * the coordinates it was given, since the site itself has none
+			 * @param {Array} projects The projects to extend
+			 * @returns {Promise} Resolved once all projects were extended
+			 */
+			async function _addWeatherFlags(projects)
+			{
+				const response = await dlApi.spaces.find({limit: SPACE_LIMIT});
+				const sites = {};
+
+				for (const space of (response && response.result) || []) {
+
+					const customData = space.customData || {};
+
+					sites[space.id] = {
+						active: String(customData[WEATHER_ACTIVE_ATTRIBUTE]).toLowerCase() === 'true',
+						latitude: Number(customData[WEATHER_LATITUDE_ATTRIBUTE]),
+						longitude: Number(customData[WEATHER_LONGITUDE_ATTRIBUTE])
+					};
+				}
+
+				for (const project of projects) {
+
+					const site = sites[project.spaceId];
+
+					project.weatherActive = site ? site.active : false;
+					project.latitude = site ? site.latitude : null;
+					project.longitude = site ? site.longitude : null;
+				}
+			}
+
+            /**
+			 * Adds the background image of its space to each project, which the overview cards use as their header
+			 * @param {Array} projects The projects to extend
+			 * @returns {Promise} Resolved once all projects were extended
+			 */
+			async function _addSpaceBackgrounds(projects)
+			{
+				for (const project of projects) {
+
+					if (!project.spaceId) {
+						continue;
+					}
+
+					try {
+
+						const images = await api.findLatest({
+							contentLogicalType: SPACE_BACKGROUND_LOGICAL_TYPE,
+							spaceId: project.spaceId,
+							limit: 1
+						});
+
+						project.image = images.length ? images[0].id : null;
+
+					} catch (error) {
+						console.error('Failed to read project background', project.spaceId, error);
+					}
+				}
+			}
+
+            /**
+			 * Reads the stored investor, dropping it when it is too old or belongs to another user
+			 * @returns {Object|null} The investor, or null when there is nothing usable
+			 */
+			function _readCache()
+			{
+				try {
+
+					const raw = window.parent.sessionStorage.getItem(SESSION_STORE_KEY);
+
+					if (!raw) {
+						return null;
+					}
+
+					const entry = JSON.parse(raw);
+					const sessionUser = api.getSessionUser();
+
+					// a different user means the session was impersonated, so the entry is worthless
+					if (!entry.investor || entry.userId !== (sessionUser && sessionUser.id)) {
+						return null;
+					}
+
+					if (Date.now() - entry.storedAt > CACHE_MAX_AGE_MS) {
+						return null;
+					}
+
+					return entry.investor;
+
+				} catch (error) {
+					return null;
+				}
+			}
+
+			/**
+			 * Stores the investor in the session store
+			 * @param {Object} investor The investor to store
+			 * @returns {undefined}
+			 */
+			function _writeCache(investor)
+			{
+				try {
+
+					window.parent.sessionStorage.setItem(SESSION_STORE_KEY, JSON.stringify({
+						userId: investor.user.id,
+						storedAt: Date.now(),
+						investor: investor
+					}));
+
+				} catch (error) {
+					console.error('Failed to store the investor in the session store', error);
+				}
+			}
+
+            /**
+			 * Maps a weather condition onto its mdi icon class
+			 * @param {String} condition The condition as written in the performance file
+			 * @returns {String} The icon class
+			 */
+			pvInvestor.weatherIcon = function (condition)
+			{
+				return WEATHER_ICONS[condition] || WEATHER_ICONS.clouds;
+			};
+
+			/**
+			 * Reads the id of the background image belonging to a weather condition
+			 * @param {Object} backgrounds The conditions mapped onto content ids
+			 * @param {String} condition The condition, or nothing for the fallback image
+			 * @returns {String|null} The content id, or null when there is none
+			 */
+			pvInvestor.weatherBackground = function (backgrounds, condition)
+			{
+				return backgrounds[condition] || backgrounds[DEFAULT_CONDITION_KEY] || null;
+			};
+
+			/**
+			 * Loads the projects, shares and performance of the current investor
+			 * Always reads from the server, see loadInvestorCached for the cached variant
+			 * @returns {Promise} The investor
+			 */
+			pvInvestor.loadInvestor = async function ()
+			{
+				const sessionUser = api.getSessionUser();
+				const user = {
+					id: sessionUser && sessionUser.id,
+					display: sessionUser && sessionUser.display
+				};
+
+				const projects = await _loadProjects();
+
+				await _addWeatherFlags(projects);
+                await _addSpaceBackgrounds(projects);
+
+				const weatherBackgrounds = await _loadWeatherBackgrounds();
+				const shares = [];
+				let totalAmount = 0;
+
+				for (const project of projects) {
+
+					for (const share of project.shares) {
+
+						if (share.investorId !== user.id) {
+							continue;
+						}
+
+						shares.push(share);
+						totalAmount += share.amount;
+
+						project.myShare = share.relativeAmount;
+					}
+				}
+
+				return {
+					user: user,
+					projects: projects,
+					shares: shares,
+					totalAmount: totalAmount,
+                    weatherBackgrounds: weatherBackgrounds
+				};
+			};
+
+			/**
+			 * Reads the investor from the session store when it is recent enough and belongs
+			 * to the current user, otherwise loads and stores it. Never caches in developer mode
+			 * @returns {Promise} The investor
+			 */
+			pvInvestor.loadInvestorCached = async function ()
+			{
+				if (api.isDeveloperMode()) {
+					return pvInvestor.loadInvestor();
+				}
+
+				const cached = _readCache();
+
+				if (cached !== null) {
+					return cached;
+				}
+
+				const investor = await pvInvestor.loadInvestor();
+                
+				_writeCache(investor);
+
+				return investor;
+			};
+		})();
+
+	</script>
+
+</widget>

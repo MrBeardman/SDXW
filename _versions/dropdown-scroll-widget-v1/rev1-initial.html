@@ -1,0 +1,122 @@
+<!--
+A dropdown that scrolls to a section elsewhere on the page instead of navigating - a mini
+table-of-contents. Options are author-typed "Label|AnchorId" pairs; AnchorId should match a
+Custom ID set on the target widget's slot (Advanced tab) or any native element id on the page.
+All option labels are localized (en/de).
+//-->
+<widget>
+
+	<!-- CONFIG -->
+	<script type="application/json" id="widget-config">
+		{
+		"hrid": "dropdown-scroll-widget-v1",
+		"display": "Dropdown Scroll Widget V1",
+		"description": "A dropdown that smooth-scrolls to a section elsewhere on the page.",
+		"category": "AI Examples/Basic",
+		"type": "widget",
+		"layoutUnique": false,
+		"icon": "arrow-down-bold-hexagon-outline",
+		"iconColor": "#96C21F",
+		"options": [
+			{ "key": "options-list", "label": { "en": "Options (Label|AnchorId, comma-separated)", "de": "Optionen (Label|AnkerId, kommagetrennt)" }, "type": "text", "default": "Introduction|intro,Features|features,Pricing|pricing" },
+			{ "key": "default-option", "label": { "en": "Default option (matches a label above)", "de": "Standardoption (entspricht einem Label oben)" }, "type": "text", "default": "Introduction" }
+		]
+		}
+	</script>
+
+	<!-- STYLE -->
+	<style id="widget-styles">
+
+		@scope {
+
+			#widget-body {
+
+				#dropdown {
+					/* inner spacing on the control itself, not the slot around it (see
+					   architecture.md, "Slot-level styling") */
+					padding: 8px 12px;
+					cursor: pointer;
+				}
+			}
+		}
+
+	</style>
+
+	<!-- TAGS -->
+	<!-- No loading/active/error state machine - synchronous and config-only (see patterns.md) -->
+	<div id="widget-body">
+		<select id="dropdown"></select>
+	</div>
+
+	<!-- SCRIPT -->
+	<script id="widget-script">
+
+		(function () {
+
+			// Uses
+			const sdx = window.sdx;
+
+			// Widget
+			const widget = sdx.Widget.getInstance();
+
+			// Same "Label|value" parsing as dropdown-widget-v1 - select can't hold end-user-
+			// variable options, so this is built in onLoad either way.
+			widget.onLoad(function () {
+
+				const select = widget.findElement('#dropdown');
+				const defaultLabel = widget.getConfig('default-option').trim();
+
+				const entries = widget.getConfig('options-list')
+					.split(',')
+					.map(function (entry) {
+						const parts = entry.split('|');
+						return {
+							label: (parts[0] || '').trim(),
+							anchor: (parts[1] || '').trim()
+						};
+					})
+					.filter(function (entry) {
+						return entry.label !== '' && entry.anchor !== '';
+					});
+
+				entries.forEach(function (entry) {
+
+					const option = document.createElement('option');
+
+					option.value = entry.anchor;
+					option.textContent = entry.label;
+
+					if (entry.label === defaultLabel) {
+						option.selected = true;
+					}
+
+					select.appendChild(option);
+				});
+
+				select.addEventListener('change', function () {
+
+					if (!select.value) {
+						return;
+					}
+
+					// Deliberately document.getElementById, not widget.findElement - the
+					// target is OUTSIDE this widget's own root, elsewhere on the shared host
+					// document (see architecture.md's findElement warning: that scoping rule
+					// is about elements WITHIN one's own widget instance, not about reaching
+					// another widget's slot on purpose, which is what a Custom ID is for).
+					const target = document.getElementById(select.value);
+
+					if (target) {
+						target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+					}
+				});
+			});
+
+			// Call after all prep to get widget loaded
+			widget.ready();
+
+		})();
+
+	</script>
+
+</widget>

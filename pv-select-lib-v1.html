@@ -1,0 +1,204 @@
+<widget>
+
+	<!-- CONFIG -->
+	<script type="application/json" id="widget-config">
+		{
+		"hrid": "pv-select-lib-v1",
+		"display": "PV Select Library V1",
+		"description": "Builds the custom dropdowns the pv widgets share",
+		"category": "PV",
+		"layoutUnique": true,
+		"type": "library",
+		"loadIndex": 50,
+		"icon": "form-dropdown",
+		"iconColor": "#42f5d4"
+		}
+	</script>
+
+	<!-- STYLE -->
+	<style id="widget-styles">
+
+		.pv-select {
+            position: relative;
+			display: inline-block;
+		}
+
+		.pv-select-button {
+			display: flex;
+			align-items: center;
+			justify-content: space-between;
+			gap: 12px;
+			padding: 14px 20px 14px 22px;
+			border: 0;
+			border-radius: 999px;
+			background: var(--widget-accentColor);
+			color: #fff;
+			font: inherit;
+			font-size: 15px;
+			font-weight: 500;
+			letter-spacing: .6px;
+			text-transform: uppercase;
+			white-space: nowrap;
+			cursor: pointer;
+		}
+
+		.pv-select-menu {
+			position: absolute;
+			top: calc(100% + 6px);
+			right: 0;
+			z-index: 20;
+			display: none;
+			min-width: 230px;
+			max-height: 235px;
+			margin: 0;
+			padding: 6px;
+			overflow-y: auto;
+			list-style: none;
+			border-radius: 20px;
+			background: #fff;
+			box-shadow: 0 12px 30px -8px rgba(0, 0, 0, .25);
+		}
+
+		.pv-select-menu.is-open {
+			display: block;
+		}
+
+		.pv-select-menu li {
+			padding: 11px 16px;
+			border-radius: 20px;
+			font-size: 14px;
+			margin-bottom: 2px;
+			letter-spacing: .5px;
+			text-transform: uppercase;
+			white-space: nowrap;
+			color: var(--widget-accentColor);
+			cursor: pointer;
+			transition: background .15s ease, color .15s ease;
+		}
+
+		.pv-select-menu li:hover,
+		.pv-select-menu li.is-active {
+			background: var(--widget-accentColor);
+			color: #fff;
+		}
+
+		.pv-select-small .pv-select-button {
+			padding: 8px 12px 8px 16px;
+			font-size: 12px;
+			letter-spacing: .4px;
+		}
+
+		.pv-select-small .pv-select-menu li {
+			padding: 8px 12px;
+			font-size: 12px;
+		}
+
+	</style>
+
+	<!-- SCRIPT -->
+	<script id="widget-script">
+
+		(function () {
+
+			// Uses
+			const sdx = window.sdx;
+
+			// Package
+			const pvSelect = sdx.pvSelect = {};
+
+			// Globals
+			const OPEN_CLASS = 'is-open';
+			const ACTIVE_CLASS = 'is-active';
+
+			// every menu on the page closes when a click lands outside it
+			const menus = [];
+
+			document.addEventListener('click', function () {
+
+				for (const menu of menus) {
+					menu.classList.remove(OPEN_CLASS);
+				}
+			});
+
+			/**
+			 * Builds one row of the list and wires what happens when it is picked
+			 * @param {Object} option The option to build, as text and value
+			 * @param {Element} menu The list the row belongs to
+			 * @param {Element} label The button label to write the choice into
+			 * @param {Function|null} onSelect Called with the chosen value
+			 * @returns {Element} The row
+			 */
+			function _buildItem(option, menu, label, onSelect)
+			{
+				const item = document.createElement('li');
+
+				item.textContent = option.text;
+				item.setAttribute('role', 'option');
+
+				item.addEventListener('click', function () {
+
+					label.textContent = option.text;
+
+					for (const sibling of menu.children) {
+						sibling.classList.remove(ACTIVE_CLASS);
+					}
+
+					item.classList.add(ACTIVE_CLASS);
+					menu.classList.remove(OPEN_CLASS);
+
+					if (onSelect) {
+						onSelect(option.value);
+					}
+				});
+
+				return item;
+			}
+
+            /**
+			 * Fills a dropdown declared in a widget and wires opening and choosing,
+			 * since a native select list is drawn by the browser and cannot be styled
+			 * @param {Element} container The dropdown as declared in the widget
+			 * @param {Array} options The options, each as text and value
+			 * @param {String} value The value to start on
+			 * @param {Function|null} onSelect Called with the chosen value
+			 * @returns {undefined}
+			 */
+			pvSelect.fill = function (container, options, value, onSelect)
+			{
+				const label = container.querySelector('[pv-select-label]');
+				const menu = container.querySelector('.pv-select-menu');
+
+				for (const option of options) {
+
+					const item = _buildItem(option, menu, label, onSelect);
+
+					if (option.value === value) {
+						item.classList.add(ACTIVE_CLASS);
+						label.textContent = option.text;
+					}
+
+					menu.append(item);
+				}
+
+				container.querySelector('.pv-select-button').addEventListener('click', function (event) {
+
+					// the document listener closes every menu, so this click must not reach it
+					event.stopPropagation();
+
+					menu.classList.toggle(OPEN_CLASS);
+				});
+
+				menu.addEventListener('click', function (event) {
+					event.stopPropagation();
+				});
+
+				menus.push(menu);
+			};
+
+			
+
+		})();
+
+	</script>
+
+</widget>

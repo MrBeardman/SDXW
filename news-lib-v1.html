@@ -1,0 +1,146 @@
+<widget>
+
+	<!-- CONFIG -->
+	<script type="application/json" id="widget-config">
+		{
+		"hrid": "news-lib-v1",
+		"display": "News Library V1",
+		"description": "This is the news abstraction for sdx news widgets.",
+		"category": "News",
+		"layoutUnique": true,
+		"type": "library",
+		"loadIndex": 30,
+		"icon": "newspaper",
+		"iconColor": "#96C21F"
+		}
+	</script>
+
+	<!-- SCRIPT -->
+	<script id="widget-script">
+
+		// Uses
+		const sdx = window.sdx;
+		const api = sdx.api;
+		const dlApi = api.getApi();
+		const date = sdx.date;
+		const xlsx = sdx.xlsx;
+
+		// Package
+		const news = sdx.news = {};
+
+		news.load = async function (options)
+		{
+			var logicalType = options.logicalType || 'news';
+			var sheetName = options.sheetName || 'news';
+			var limit = options.limit || 50;
+			var backgroundType = options.backgroundType || 'news-default-background';
+
+			var defaultImageId = await news.findDefaultImageId(backgroundType);
+
+			var contents = await api.findLatest({
+				contentLogicalType: logicalType,
+				contentHidden: false,
+				limit: limit
+			});
+
+			var spaceUuid = api.getSpaceUuid();
+
+			if (spaceUuid) {
+				contents = contents.filter(function (content) {
+					return content.spaceId === spaceUuid;
+				});
+			}
+
+			var items = [];
+			var failed = 0;
+
+			for (var i = 0; i < contents.length; i++) {
+
+				try {
+					news.normalizeRows(await xlsx.fetchSheetRows(contents[i].id, sheetName))
+						.forEach(function (item) {
+							items.push(item);
+						});
+				} catch (error) {
+					failed++;
+					console.error('Failed to read news file', contents[i].id, error);
+				}
+			}
+
+			items.forEach(function (item) {
+				if (!item.image) {
+					item.image = defaultImageId;
+				}
+			});
+
+			var today = date.startOfDay(new Date());
+
+			items = items.filter(function (item) {
+				return news.isVisible(item, today);
+			});
+
+			items.sort(function (first, second) {
+
+				var firstDate = (first.date || first.from);
+				var secondDate = (second.date || second.from);
+
+				return (secondDate ? secondDate.getTime() : 0) - (firstDate ? firstDate.getTime() : 0);
+			});
+
+			return {
+				items: items,
+				failed: failed
+			};
+		};
+
+		news.normalizeRows = function (rawRows)
+		{
+			return rawRows.map(function (row) {
+
+				return {
+					title: row['title'],
+					text: row['text'],
+					image: row['image'],
+					link: row['link'],
+					date: date.toDate(row['date']),
+					from: date.toDate(row['from']),
+					till: date.toDate(row['till'])
+				};
+			}).filter(function (row) {
+				return row.title;
+			});
+		};
+
+		news.isVisible = function (item, today)
+		{
+			var from = item.from ? date.startOfDay(item.from) : null;
+			var till = item.till ? date.startOfDay(item.till) : null;
+
+			if (from !== null && today < from) {
+				return false;
+			}
+
+			if (till !== null && today > till) {
+				return false;
+			}
+
+			return true;
+		};
+
+		news.findDefaultImageId = function (logicalType)
+		{
+			return dlApi.contents.find({contentLogicalType: logicalType, contentHidden: false, limit: 1})
+				.then(function (response) {
+
+					var contents = (response && response.result) || [];
+
+					return contents.length ? contents[0].id : null;
+				})
+				.catch(function () {
+					return null;
+				});
+		};
+
+	</script>
+
+</widget>

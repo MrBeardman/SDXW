@@ -1,0 +1,66 @@
+<widget>
+
+    <!-- CONFIG -->
+    <script type="application/json" id="widget-config">
+        {
+		"hrid" : "test-bs-widget-v1",
+		"display" : "Benjamins Test Widget V1",
+		"description" : "Test widget of Benjamin",
+		"category" : "Test",
+		"type": "widget",
+		"layoutUnique" : true,
+		"icon" : "coffee",
+		"iconColor" : "#F7C900",
+		"options": [
+			{ "key": "title", "label": "Title", "type": "text", "default": "Test" },
+			{ "key": "title-color", "label": "Title Color", "type": "color", "default": "#213B33" },
+			{ "key": "title-color2", "label": "Title Color 2", "type": "color", "default": "#213B33" }
+		]
+        }
+    </script>
+
+	<!-- STYLE -->
+	<style id="widget-styles">
+
+		@scope {
+
+			#widget-body {
+
+				#title {
+					color: var(--widget-title-color);
+				}
+			}
+		}
+
+	</style>
+
+    <!-- TAGS -->
+    <div id="widget-body">
+        <h1 id="title">-</h1>
+    </div>
+
+    <!-- SCRIPT -->
+    <script id="widget-script">
+
+		(function () {
+
+			// Uses
+			const sdx = window.sdx;
+
+			// Widget
+			const widget = sdx.Widget.getInstance();
+
+			// Initial update
+			widget.onLoad(async function () {
+
+				widget.findElement('#title').textContent = widget.getConfig('title');
+
+			});
+
+			widget.ready();
+
+		})();
+
+    </script>
+
+</widget>

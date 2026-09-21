@@ -1,0 +1,494 @@
+<widget>
+
+    <!-- CONFIG -->
+    <script type="application/json" id="widget-config">
+        {
+			"hrid" : "project-overview-widget-v1",
+			"display" : "Project Overview Widget V1",
+			"description" : "Shows the projects of the dashboard or the project of the current space",
+			"category" : "Projects",
+			"type": "widget",
+			"layoutUnique" : false,
+			"icon" : "view-dashboard-outline",
+			"iconColor" : "#96C21F",
+			"options": [
+				{ "key": "accentColor", "label": "Header fallback color", "type": "color", "default": "#96C21F" },
+				{ "key": "statusColorActive", "label": "Status badge: Active", "type": "color", "default": "#16A34A" },
+				{ "key": "statusColorPlanning", "label": "Status badge: Planning", "type": "color", "default": "#D97706" },
+				{ "key": "statusColorConstruction", "label": "Status badge: In Construction", "type": "color", "default": "#2f61bc" },
+				{ "key": "statusColorDefault", "label": "Status badge: fallback", "type": "color", "default": "#6B7280" },
+				{ "key": "performanceRowId", "label": "Row id: Performance Report (superadmin tabs)", "type": "text", "default": "performance-report-row" },
+				{ "key": "filesRowId", "label": "Row id: Space Files (superadmin tabs)", "type": "text", "default": "space-files-row" }
+			]
+        }
+    </script>
+
+	<!-- L10N -->
+    <script type="application/json" id="widget-l10n">
+        {
+			"de" : {
+				"loading": "Wird geladen…",
+				"capacity": "Anlagenleistung",
+				"myInvestment": "Meine Investition",
+				"untitledProject": "Unbenanntes Projekt",
+				"noProjectFound": "Kein Projekt gefunden.",
+				"tabPerformance": "Performance Report",
+				"tabFiles": "Dateien"
+			},
+			"en" : {
+				"loading": "Loading…",
+				"capacity": "Capacity",
+				"myInvestment": "My investment",
+				"untitledProject": "Untitled project",
+				"noProjectFound": "No project found.",
+				"tabPerformance": "Performance Report",
+				"tabFiles": "Files"
+			}
+        }
+    </script>
+
+    <!-- STYLE -->
+    <style id="widget-styles">
+
+		@scope {
+
+			#widget-body {
+
+				.project-list {
+					display: flex;
+					flex-wrap: wrap;
+					gap: 12px;
+					padding: 5px;
+				}
+
+                .project-item {
+					width: 300px;
+				}
+
+				.project-list.detail .project-item {
+					width: 100%;
+				}
+
+				.project-card {
+					width: 100%;
+					height: 100%;
+					border-radius: var(--widget-border-radius);
+					background: var(--widget-default-background-color);
+					overflow: hidden;
+					text-decoration: none;
+					color: inherit;
+					display: flex;
+					flex-direction: column;
+					transition: transform .5s;
+				}
+
+				.card-header {
+					position: relative;
+					height: 130px;
+					padding: 12px 14px 26px;
+					background: var(--widget-accentColor);
+					background-size: cover;
+					background-position: center;
+					color: #fff;
+					overflow: hidden;
+					display: flex;
+					flex-shrink: 0;
+					flex-direction: column;
+					justify-content: flex-end;
+				}
+
+				.detail .card-header {
+					height: 180px;
+					padding: 16px 18px 34px;
+				}
+
+				.slant {
+					position: absolute;
+					left: 0;
+					right: 0;
+					bottom: -1px;
+					height: 30px;
+					background: var(--widget-default-background-color);
+					clip-path: polygon(0 100%, 100% 47%, 100% 100%);
+				}
+
+				.title-glass {
+					position: relative;
+					z-index: 1;
+					align-self: flex-start;
+					max-width: 100%;
+					text-shadow: 0 1px 4px rgba(0, 0, 0, 0.45);
+				}
+
+				.detail .title-glass {
+					padding: 10px 14px;
+					border-radius: var(--widget-border-radius);
+					background: rgba(255, 255, 255, 0.16);
+					-webkit-backdrop-filter: blur(10px);
+					backdrop-filter: blur(10px);
+				}
+
+				.project-title {
+					margin: 0;
+					font-size: 18px;
+					font-weight: 800;
+					line-height: 1.1;
+					word-break: break-word;
+				}
+
+				.detail .project-title  {
+					font-size: 22px;
+					font-weight: 900;
+				}
+
+				.weather-chip {
+					position: absolute;
+					top: 12px;
+					right: 12px;
+					z-index: 1;
+					display: flex;
+					align-items: center;
+					gap: 6px;
+					padding: 5px 10px;
+					border-radius: 999px;
+					background: rgba(255, 255, 255, 0.16);
+					-webkit-backdrop-filter: blur(10px);
+					backdrop-filter: blur(10px);
+					font-size: 20px;
+					font-weight: 700;
+				}
+
+				.weather-chip .mdi {
+					font-size: 26px;
+				}
+
+				.card-body {
+					flex: 1;
+					display: flex;
+					flex-direction: column;
+					padding: 10px 14px 14px;
+				}
+
+				.badge {
+					align-self: flex-start;
+					display: inline-block;
+					font-size: 11px;
+					font-weight: 700;
+					text-transform: uppercase;
+					letter-spacing: 0.4px;
+					padding: 3px 10px;
+					border-radius: 999px;
+					background: var(--widget-statusColorDefault);
+					color: #fff;
+					margin-bottom: 10px;
+				}
+
+				.badge.status-active {
+					background: var(--widget-statusColorActive);
+				}
+
+				.badge.status-planning {
+					background: var(--widget-statusColorPlanning);
+				}
+
+				.badge.status-construction {
+					background: var(--widget-statusColorConstruction);
+				}
+
+				.description {
+					margin: 0 0 10px;
+					font-size: 15px;
+					color: rgba(0, 0, 0, 0.65);
+					line-height: 1.2;
+					word-break: break-word;
+					display: -webkit-box;
+					-webkit-line-clamp: 2;
+					-webkit-box-orient: vertical;
+					overflow: hidden;
+				}
+
+				.detail .description {
+					font-size: 16px;
+					line-height: 1.4;
+					-webkit-line-clamp: 6;
+				}
+
+				.stats {
+					display: grid;
+					grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+					gap: 8px;
+					margin-top: auto;
+				}
+
+				.stat {
+					background: #f2f6ea;
+					border-radius: 8px;
+					padding: 8px 10px;
+				}
+
+				.stat .label {
+					font-size: 11px;
+					text-transform: uppercase;
+					letter-spacing: 0.4px;
+					color: #618526;
+					margin-bottom: 3px;
+				}
+
+				.stat .amount {
+					font-size: 16px;
+					font-weight: 700;
+					color: #213B33;
+				}
+
+				.admin-tabs {
+					display: flex;
+					gap: 6px;
+					margin-top: 14px;
+					border-top: 1px solid rgba(0, 0, 0, 0.08);
+					padding-top: 10px;
+				}
+
+				.admin-tab {
+					appearance: none;
+					border: 1px solid rgba(0, 0, 0, 0.12);
+					background: var(--widget-default-background-color);
+					border-radius: 999px;
+					padding: 4px 12px;
+					font-size: 13px;
+					font-weight: 600;
+					color: rgba(0, 0, 0, 0.6);
+					cursor: pointer;
+				}
+
+				.admin-tab.active {
+					border-color: var(--widget-accentColor);
+					background: var(--widget-accentColor);
+					color: #fff;
+				}
+
+				.project-card[href]:hover {
+					transform: scale(1.03);
+				}
+
+			}
+		}
+
+    </style>
+
+    <!-- TAGS -->
+   <div id="widget-body">
+
+		<div widget-state="loading">Loading…</div>
+
+		<div id="project-list" class="project-list d-none" widget-state="active">
+			<div id="project-template" class="project-item d-none">
+				<a class="project-card" template-route="link">
+					<div class="card-header" template-background-image="image">
+						<div class="weather-chip" template-visible="hasWeather">
+							<i class="mdi" template-class="weatherIcon" aria-hidden="true"></i>
+							<span template-text="temperature"></span>
+						</div>
+						<div class="title-glass">
+							<h3 class="project-title" template-text="title">Project</h3>
+						</div>
+						<div class="slant"></div>
+					</div>
+					<div class="card-body">
+						<div class="badge" template-text="status" template-class="statusFlavor">Status</div>
+						<p class="description" template-text="description"></p>
+						<div class="stats">
+							<div class="stat">
+								<div class="label" template-text="capacityLabel">Capacity</div>
+								<div class="amount" template-text="capacity"></div>
+							</div>
+							<div class="stat">
+								<div class="label" template-text="investmentLabel">My investment</div>
+								<div class="amount" template-text="investment"></div>
+							</div>
+						</div>
+					</div>
+				</a>
+			</div>
+		</div>
+
+		<div class="d-none widget-error" widget-state="error">
+			<small>Could not load widget</small>
+			<h2 widget-error-message></h2>
+		</div>
+
+		<div id="admin-tabs" class="admin-tabs d-none">
+			<button type="button" class="admin-tab" data-tab="performance">Performance Report</button>
+			<button type="button" class="admin-tab" data-tab="files">Files</button>
+		</div>
+    </div>
+
+    <!-- SCRIPT -->
+    <script id="widget-script">
+
+		(function () {
+
+			// Uses
+			const sdx = window.sdx;
+			const api = sdx.api;
+			const number = sdx.number;
+			const pvInvestor = sdx.pvInvestor;
+			const l10n = sdx.l10n;
+
+			// Widget
+			const widget = sdx.Widget.getInstance();
+
+			// Globals
+			const STATUS_ALIASES = {
+				'in construction': 'construction'
+			};
+
+			/**
+			 * Translates a project state, mapping the known synonyms onto one key
+			 * @param {String} state The state as written in the details sheet
+			 * @returns {String} The translated label
+			 */
+			function _statusLabel(state)
+			{
+				if (!state) {
+					return l10n.translate('projectOverview.unknownStatus', 'Unknown');
+				}
+
+				const key = String(state).trim().toLowerCase();
+
+				return l10n.translate('status.' + (STATUS_ALIASES[key] || key), state);
+			}
+
+			/**
+			 * Turns projects into template data, adding the values the markup expects
+			 * @param {Array} projects The projects
+             * @param {Boolean} isDetail Whether the widget renders one project or a list
+			 * @returns {Array} The prepared entries
+			 */
+			function _prepareData(projects, isDetail)
+			{
+				var capacityLabel = widget.resolveL10N('capacity', {});
+				var investmentLabel = widget.resolveL10N('myInvestment', {});
+
+				return projects.map(function (project) {
+
+					var weather = project.today && project.today.weather;
+					var status = _statusLabel(project.state);
+
+					return {
+						title: project.title || widget.resolveL10N('untitledProject', {}),
+						description: project.description || '',
+						image: project.image,
+						status: status,
+						statusFlavor: 'status-' + String(project.state || 'default').trim().toLowerCase().replace(/\s+/g, '-'),
+						capacity: number.formatNumber(project.capacity, 'MWp'),
+						capacityLabel: capacityLabel,
+						investment: number.formatCurrency((Number(project.investmentValue) || 0) * project.myShare),
+						investmentLabel: investmentLabel,
+                        // template-visible compares against true exactly, so this has to be a real boolean
+						hasWeather: !!weather,
+						weatherIcon: weather ? pvInvestor.weatherIcon(weather.weather) : null,
+						temperature: weather ? number.formatTemperature(weather.temp) : '',
+                        // @todo builds the space url by hand, same url assumption as api.getSpaceUuid
+                        link: (isDetail || !project.spaceId) ? null : '/spaces/' + project.spaceId
+					};
+				});
+			}
+
+			/**
+			 * Shows or hides the layout rows belonging to the given tab
+			 * @param {String} tab The tab to select
+			 * @returns {undefined}
+			 */
+			function _selectTab(tab)
+			{
+				var performanceRowId = widget.getConfig('performanceRowId');
+				var filesRowId = widget.getConfig('filesRowId');
+
+				widget.findElements('.admin-tab').forEach(function (button) {
+					button.classList.toggle('active', button.getAttribute('data-tab') === tab);
+				});
+
+				window.postMessage({
+					type: 'widget-set-row-visibility',
+					show: tab === 'performance' ? [performanceRowId] : [filesRowId],
+					hide: tab === 'performance' ? [filesRowId] : [performanceRowId]
+				}, '*');
+			}
+
+			/**
+			 * Shows the superadmin tabs, or hides the files row for everyone else
+			 * @returns {undefined}
+			 */
+			function _setupTabs()
+			{
+				var auth = window.parent && window.parent.Application && window.parent.Application.auth;
+
+				if (!(auth && auth.isSuperAdmin)) {
+					window.postMessage({
+						type: 'widget-set-row-visibility',
+						show: [widget.getConfig('performanceRowId')],
+						hide: [widget.getConfig('filesRowId')]
+					}, '*');
+					return;
+				}
+
+				widget.findElement('#admin-tabs').classList.remove('d-none');
+
+				widget.findElements('.admin-tab').forEach(function (button) {
+					button.addEventListener('click', function () {
+						_selectTab(button.getAttribute('data-tab'));
+					});
+				});
+
+				_selectTab('performance');
+			}
+
+			// Set the load callback for the current widget
+			widget.onLoad(async function () {
+
+				widget.findElement('[widget-state="loading"]').textContent = widget.resolveL10N('loading', {});
+				widget.findElement('[data-tab="performance"]').textContent = widget.resolveL10N('tabPerformance', {});
+				widget.findElement('[data-tab="files"]').textContent = widget.resolveL10N('tabFiles', {});
+
+
+				const spaceUuid = api.getSpaceUuid();
+				const isDetail = !!spaceUuid;
+
+				const investor = await pvInvestor.loadInvestorCached();
+
+				// on a space page the widget shows that one project, on the dashboard all of them
+				const projects = isDetail
+					? investor.projects.filter(function (project) {
+						return project.spaceId === spaceUuid;
+					})
+					: investor.projects;
+
+				if (!projects.length) {
+					throw new Error(widget.resolveL10N('noProjectFound', {}));
+				}
+				
+				const data = _prepareData(projects, isDetail);
+				const container = widget.findElement('#project-list');
+				const template = widget.createTemplate('#project-template');
+
+				// detail is a state of the whole widget, not of one card, so the class sits on the container and the css does the rest
+				container.classList.toggle('detail', isDetail);
+
+				template.append(data, container);
+
+				// the tabs control rows of the detail page, so they only exist there
+				if (isDetail) {
+					_setupTabs();
+				}
+
+				
+			});
+
+			// Call after all prep to get widget loaded
+			widget.ready();
+
+		})();
+
+    </script>
+
+</widget>

@@ -1,0 +1,1103 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Lato:wght@400;700;900&display=swap" rel="stylesheet">
+  <script type="application/json" id="widget-schema">
+{
+  "fields": [
+    { "key": "logicalType", "label": "Project data logicalType (details + investors)", "type": "text", "default": "project-data" },
+    { "key": "investorsSheet", "label": "Investors sheet", "type": "text", "default": "investors" },
+    { "key": "detailsSheet", "label": "Details sheet", "type": "text", "default": "details" },
+    { "key": "performanceLogicalType", "label": "Performance data logicalType", "type": "text", "default": "performance-data" },
+    { "key": "dailySheet", "label": "Daily sheet", "type": "text", "default": "daily" },
+    { "key": "currentDaySheet", "label": "Current day sheet", "type": "text", "default": "currentDay" },
+    { "key": "accentColor", "label": "Primary color (income / you / 1st project)", "type": "color", "default": "#96C21F" },
+    { "key": "energyColor", "label": "Energy line color", "type": "color", "default": "#213B33" },
+    { "key": "weatherBackgroundLogicalType", "label": "Weather background image logicalType", "type": "text", "default": "weather-background-image" }
+  ]
+}
+</script>
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: 'Lato', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      color: #1b1f27;
+      padding: 14px;
+      background-color: #f9f9f9;
+    }
+
+    .state {
+      padding: 24px;
+      text-align: center;
+      color: rgba(0, 0, 0, 0.55);
+    }
+
+    .head {
+      display: flex;
+      align-items: center;
+      margin-bottom: 14px;
+      gap: 12px;
+    }
+
+    .dgs-select {
+      position: relative;
+      min-width: 230px;
+    }
+
+    .dgs-select-btn {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      width: 100%;
+      font-family: 'Lato', sans-serif;
+      font-size: 15px;
+      font-weight: 500;
+      letter-spacing: .6px;
+      text-transform: uppercase;
+      padding: 14px 20px 14px 22px;
+      border: 0;
+      border-radius: 50px;
+      background-color: #96C21F;
+      color: #fff;
+      cursor: pointer;
+    }
+
+    .dgs-select-btn span {
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .dgs-select-menu {
+      position: absolute;
+      top: calc(100% + 6px);
+      left: 0;
+      right: 0;
+      z-index: 20;
+      margin: 0;
+      padding: 6px;
+      list-style: none;
+      background: #fff;
+      border-radius: 20px;
+      box-shadow: 0 12px 30px -8px rgba(0, 0, 0, .25);
+      max-height: 320px;
+      overflow-y: auto;
+      display: none;
+    }
+
+    .dgs-select-menu.open {
+      display: block;
+    }
+
+    .dgs-select-menu li {
+      font-family: 'Lato', sans-serif;
+      font-size: 14px;
+      font-weight: 500;
+      letter-spacing: .5px;
+      margin-bottom: 3px;
+      text-transform: uppercase;
+      color: #96C21F;
+      padding: 11px 16px;
+      border-radius: 20px;
+      cursor: pointer;
+      transition: background 0.15s ease, color 0.15s ease;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .dgs-select-menu li:hover,
+    .dgs-select-menu li.active {
+      background: #96C21F;
+      color: #fff;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr) minmax(0, 0.95fr);
+      gap: 14px;
+    }
+
+    .card {
+      background: #fff;
+      border-radius: 14px;
+      padding: 16px 18px;
+    }
+
+    .card .label {
+      font-size: 13px;
+      text-transform: uppercase;
+      letter-spacing: .5px;
+      color: rgba(0, 0, 0, 0.5);
+    }
+
+    .note-admin {
+      font-size: 14px;
+      color: var(--widget-accentColor, #96C21F);
+      font-weight: 600;
+      margin-bottom: 6px;
+    }
+
+    .big {
+      font-size: 34px;
+      font-weight: 800;
+      margin-top: 4px;
+    }
+
+    .big .star {
+      color: var(--widget-accentColor, #96C21F);
+      font-size: 17px;
+      vertical-align: super;
+    }
+
+    .disc {
+      font-size: 11px;
+      color: rgba(0, 0, 0, 0.45);
+      margin-top: 2px;
+    }
+
+    .donut {
+      width: 100%;
+      height: 190px;
+      margin-top: 6px;
+    }
+
+    .timeline {
+      width: 100%;
+      height: 220px;
+      margin-top: 8px;
+    }
+
+    .today {
+      color: #fff;
+      border: none;
+      background:
+        radial-gradient(circle at 82% 20%, rgba(255, 255, 255, 0.9) 0%, rgba(255, 255, 255, 0) 26%),
+        linear-gradient(135deg, #6cc6e8 0%, #4a90d9 50%, var(--widget-accentColor, #2180F2) 100%);
+      display: flex;
+      flex-direction: column;
+      min-height: 100%;
+    }
+
+    .today .t-stats {
+      position: absolute;
+      right: 18px;
+      bottom: 16px;
+      text-align: right;
+    }
+
+    .today .label {
+      color: rgba(255, 255, 255, 0.85);
+    }
+
+    .today .sun {
+      width: 120px;
+      height: 120px;
+      margin: 6px 0 10px;
+    }
+
+    .today .t-big {
+      font-size: 28px;
+      font-weight: 800;
+      margin-top: 2px;
+    }
+
+    .today {
+      position: relative;
+      overflow: hidden;
+      transition: background-color 0.6s ease;
+    }
+
+    .today>* {
+      position: relative;
+      z-index: 1;
+    }
+
+    .today.w-sunny {
+      background:
+        radial-gradient(circle at 82% 20%, rgba(255, 255, 255, 0.9) 0%, rgba(255, 255, 255, 0) 26%),
+        linear-gradient(135deg, #6cc6e8 0%, #4a90d9 50%, var(--widget-accentColor, #2180F2) 100%);
+    }
+
+    .today.w-cloudy {
+      background:
+        radial-gradient(circle at 82% 20%, rgba(255, 255, 255, 0.45) 0%, rgba(255, 255, 255, 0) 26%),
+        linear-gradient(135deg, #a8bccc 0%, #7d94a8 50%, #5d7488 100%);
+    }
+
+    .today.w-stormy {
+      background:
+        radial-gradient(circle at 82% 20%, rgba(255, 255, 255, 0.18) 0%, rgba(255, 255, 255, 0) 26%),
+        linear-gradient(135deg, #5a6b7d 0%, #3d4d5e 50%, #263442 100%);
+    }
+
+    .today .w-bg {
+      position: absolute;
+      inset: 0;
+      z-index: 0;
+      background-size: cover;
+      background-position: center;
+      opacity: 0;
+      transition: opacity 0.6s ease;
+      pointer-events: none;
+    }
+
+    .today .w-bg.on {
+      opacity: 1;
+    }
+
+    .today .w-line {
+      font-size: 15px;
+      color: rgba(255, 255, 255, 0.85);
+      margin-bottom: 10px;
+    }
+
+    .today .sun .w-rays {
+      animation: w-spin 24s linear infinite;
+      transform-origin: 12px 12px;
+    }
+
+    .today .sun .w-cloud {
+      animation: w-bob 4.5s ease-in-out infinite;
+      transform-box: fill-box;
+    }
+
+    .today .sun .w-bolt {
+      animation: w-flash 3s infinite;
+    }
+
+    .today.w-off {
+      background: #96C21F;
+    }
+
+    @keyframes w-spin {
+      to {
+        transform: rotate(360deg);
+      }
+    }
+
+    @keyframes w-bob {
+
+      0%,
+      100% {
+        transform: translateY(0);
+      }
+
+      50% {
+        transform: translateY(-0.6px);
+      }
+    }
+
+    @keyframes w-flash {
+
+      0%,
+      84%,
+      100% {
+        opacity: 1;
+      }
+
+      86%,
+      90% {
+        opacity: 0.1;
+      }
+
+      88%,
+      92% {
+        opacity: 1;
+      }
+    }
+
+    .today .t-graph {
+      position: absolute;
+      inset: 0;
+      z-index: 0;
+      width: 100%;
+      height: 100%;
+    }
+
+    .today .t-dot {
+      position: absolute;
+      z-index: 0;
+      width: 14px;
+      height: 14px;
+      margin: -7px 0 0 -7px;
+      border-radius: 50%;
+      background: #fff;
+      animation: t-pulse 1.8s ease-in-out infinite;
+    }
+
+    @keyframes t-pulse {
+
+      0%,
+      100% {
+        box-shadow: 0 0 0 0 rgba(255, 255, 255, 0.55);
+      }
+
+      50% {
+        box-shadow: 0 0 0 10px rgba(255, 255, 255, 0);
+      }
+    }
+
+    @media (max-width:1024px) {
+      .grid {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+
+<body>
+
+  <div id="state" class="state" data-loc-key="generic.loading">Loading…</div>
+  <div id="report" style="display:none;">
+    <div class="head">
+      <div class="dgs-select" id="filter">
+        <button type="button" class="dgs-select-btn" id="filter-btn">
+          <span id="filter-label">ALL PROJECTS</span>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
+            <path d="M6 9L12 15L18 9" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"
+              stroke-linejoin="round" />
+          </svg>
+        </button>
+        <ul class="dgs-select-menu" id="filter-menu" role="listbox"></ul>
+      </div>
+    </div>
+    <div class="grid">
+      <div class="card">
+        <div class="note-admin" id="admin-note" style="display:none;" data-loc-key="performanceWidget.adminNote">Project
+          totals - you are not an investor</div>
+        <div class="label" data-loc-key="performanceWidget.estimatedTotalIncome">Estimated total income</div>
+        <div class="big" id="total">—</div>
+        <div class="donut" id="donut"></div>
+      </div>
+      <div class="card">
+        <div class="label" id="timeline-label">Last 4 weeks - income &amp; energy</div>
+        <div class="timeline" id="timeline"></div>
+      </div>
+      <div class="card today">
+        <div class="label" id="today-label">Today</div>
+        <div class="w-bg" id="w-bg-a"></div>
+        <div class="w-bg" id="w-bg-b"></div>
+        <svg class="t-graph" id="t-graph" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true"></svg>
+        <div class="t-dot" id="t-dot" style="display:none;"></div>
+        <svg class="sun" id="w-icon" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="1.6"
+          stroke-linecap="round" stroke-linejoin="round"></svg>
+        <div class="w-line" id="w-text" style="display:none;"></div>
+        <div class="t-stats">
+          <div class="label" data-loc-key="performanceWidget.producedToday">Produced today</div>
+          <div class="t-big" id="t-produced">—</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    (function () {
+      // This widget can be placed on a dashboard alongside other widgets, all injected
+      // directly into the same document (not separate iframes). Every element here uses
+      // ids like #state/#report/#donut that are only unique WITHIN this widget's own
+      // markup, so document.getElementById/querySelector must never be used directly -
+      // they'd silently grab another widget instance's element instead of this one's.
+      // __root is this widget's own container; $() looks up elements scoped to it.
+      var __root = (document.currentScript && document.currentScript.parentNode) || document;
+      function $(sel) { return __root.querySelector(sel); }
+
+      function readConfig(k, f) {
+        try {
+          var v = getComputedStyle(__root).getPropertyValue('--widget-' + k);
+          v = (v || '').trim();
+          return v || f;
+        } catch (e) {
+          return f;
+        }
+      }
+
+      function showState(m) {
+        var s = $('#state');
+        var r = $('#report');
+        s.textContent = m;
+        s.style.display = 'block';
+        r.style.display = 'none';
+      }
+
+      function getApi() {
+        return window.parent && window.parent.Application && window.parent.Application.api;
+      }
+
+      function getEcharts() {
+        return window.parent && window.parent.Application && window.parent.Application.echarts;
+      }
+
+      function getCurrentUserId() {
+        var a = window.parent && window.parent.Application && window.parent.Application.auth;
+        return a && a.user && a.user.id;
+      }
+
+      function isSuperAdmin() {
+        var a = window.parent && window.parent.Application && window.parent.Application.auth;
+        return !!(a && a.isSuperAdmin);
+      }
+
+      function t(path, fallback) {
+        var lib = window.parent && window.parent.SspaLib;
+        return lib ? lib.t(path, fallback) : fallback;
+      }
+
+      function applyStaticLocalization() {
+        var lib = window.parent && window.parent.SspaLib;
+        if (lib) lib.applyStaticLocalization(__root);
+      }
+
+      function lib() {
+        return window.parent && window.parent.SspaLib;
+      }
+
+      function eur(n, dec) {
+        var l = lib();
+        return l ? l.eur(n, dec) : String(n);
+      }
+
+      function mwh(n) {
+        var l = lib();
+        return l ? l.mwh(n) : String(n);
+      }
+
+      function round3sig(n) {
+        var l = lib();
+        return l ? l.round3sig(n) : Number(n) || 0;
+      }
+
+      function kv(wb, name) {
+        var l = lib();
+        return l ? l.kv(wb, name) : {};
+      }
+
+      function investors(wb, name) {
+        var l = lib();
+        return l ? l.investors(wb, name) : [];
+      }
+
+      function sheetRows(wb, name) {
+        var l = lib();
+        return l ? l.sheetRows(wb, name) : [];
+      }
+
+      function fetchWorkbook(api, id) {
+        return lib().fetchWorkbook(api, id);
+      }
+
+      function temp(v) {
+        var l = lib();
+        return l ? l.temp(v) : (v == null ? '' : String(v));
+      }
+
+      var WEATHER_DEFAULT_ACTIVE = false;
+
+      var WEATHER_CSS = {
+        'clear': 'w-sunny',
+        'clouds': 'w-cloudy',
+        'atmosphere': 'w-cloudy',
+        'rain': 'w-stormy',
+        'drizzle': 'w-stormy',
+        'snow': 'w-stormy',
+        'thunderstorm': 'w-stormy'
+      };
+
+      function weatherKey(w) {
+        return String(w || '').trim().toLowerCase();
+      }
+
+      function parseBoolAttr(v) {
+        if (v == null || v === '') return null;
+        var s = String(v).trim().toLowerCase();
+        return s === 'true' || s === '1' || s === 'yes';
+      }
+
+      function hideWeather() {
+        var icon = $('#w-icon');
+        var text = $('#w-text');
+        if (icon) icon.style.display = 'none';
+        if (text) text.style.display = 'none';
+        var card = $('.card.today');
+        if (card) {
+          card.classList.remove('w-sunny', 'w-cloudy', 'w-stormy');
+          card.classList.add('w-off');
+        }
+        applyWeatherBackground('off');
+      }
+
+      async function loadWeatherFlags(api, projects) {
+        try {
+          var r = await api.spaces.find({ limit: 100 });
+          var map = {};
+          ((r && r.result) || []).forEach(function (s) {
+            map[s.id] = parseBoolAttr((s.customData || {})['sdx.weather.api.active']);
+          });
+          projects.forEach(function (p) {
+            var v = map[p.spaceId];
+            p.weatherActive = v == null ? WEATHER_DEFAULT_ACTIVE : v;
+          });
+        } catch (e) {
+          projects.forEach(function (p) { p.weatherActive = WEATHER_DEFAULT_ACTIVE; });
+        }
+      }
+
+      var weatherBackgrounds = null;
+
+      async function loadWeatherBackgrounds(api, logicalType) {
+        var map = {};
+        try {
+          var r = await api.contents.find({ contentLogicalType: logicalType, contentHidden: false, limit: 50 });
+          ((r && r.result) || []).forEach(function (c) {
+            var cond = (c.customData || {})['sdx.weather.condition'];
+            var url = api.contents.streamAsGetURL(c.id, true);
+            if (cond == null || String(cond).trim() === '') {
+              if (!map._default) map._default = url;
+            } else {
+              map[String(cond).trim().toLowerCase()] = url;
+            }
+          });
+        } catch (e) { }
+        return map;
+      }
+
+      var bgToggle = false;
+
+      function applyWeatherBackground(condition) {
+        var card = $('.card.today');
+        var a = $('#w-bg-a'), b = $('#w-bg-b');
+        if (!card || !a || !b || !weatherBackgrounds) return;
+
+        var key = String(condition || '').trim().toLowerCase();
+        if (!key) key = 'off';
+        var url = weatherBackgrounds[key] || weatherBackgrounds._default;
+
+        card.style.backgroundImage = '';
+
+        if (!url) {
+          a.classList.remove('on');
+          b.classList.remove('on');
+          return;
+        }
+
+        var next = bgToggle ? a : b;
+        var cur = bgToggle ? b : a;
+        next.style.backgroundImage = 'url(' + url + ')';
+        next.classList.add('on');
+        cur.classList.remove('on');
+        bgToggle = !bgToggle;
+      }
+
+      var CLOUD = '<g class="w-cloud"><path d="M6.5 15a4 4 0 1 1 .6-7.95A5.5 5.5 0 0 1 17.8 9 3.5 3.5 0 0 1 17 15.9z" fill="rgba(255,255,255,0.25)"/></g>';
+
+      var WEATHER_ICONS = {
+        'clear': '<g class="w-rays"><path d="M12 2v2M12 20v2M4.2 4.2l1.4 1.4M18.4 18.4l1.4 1.4M2 12h2M20 12h2M4.2 19.8l1.4-1.4M18.4 5.6l1.4-1.4"/></g><circle cx="12" cy="12" r="4.5" fill="rgba(255,255,255,0.25)"/>',
+        'clouds': '<g class="w-cloud"><path d="M6.5 18a4 4 0 1 1 .6-7.95A5.5 5.5 0 0 1 17.8 12 3.5 3.5 0 0 1 17 18.9z" fill="rgba(255,255,255,0.25)"/></g>',
+        'rain': CLOUD + '<path d="M8 18l-1 3M12 18l-1 3M16 18l-1 3"/>',
+        'drizzle': CLOUD + '<path d="M8 18l-.6 1.6M12 18l-.6 1.6M16 18l-.6 1.6"/>',
+        'thunderstorm': CLOUD + '<path class="w-bolt" d="M12 15l-2 4h3l-1.5 3.5"/>',
+        'snow': CLOUD + '<path d="M8 18.5v2.5M6.9 19.1l2.2 1.3M9.1 19.1l-2.2 1.3M15 18.5v2.5M13.9 19.1l2.2 1.3M16.1 19.1l-2.2 1.3"/>',
+        'atmosphere': '<path d="M3 9h13M6 13h15M3 17h13" opacity="0.85"/>'
+      };
+
+      function renderWeather(w) {
+        var icon = $('#w-icon'), text = $('#w-text');
+        var hasWeather = w && (w.temp != null || w.weather || w.wind);
+        var key = weatherKey(w && w.weather);
+
+        icon.style.display = hasWeather ? 'block' : 'none';
+
+        if (!hasWeather) {
+          text.style.display = 'none';
+        } else {
+          icon.innerHTML = WEATHER_ICONS[key] || WEATHER_ICONS['clouds'];
+          var parts = [];
+          if (w.temp != null && w.temp !== '') parts.push(temp(w.temp));
+          if (w.weather) parts.push(t('weather.' + key, w.weather));
+          if (w.wind) parts.push(w.wind);
+          text.textContent = parts.join(' \u00B7 ');
+          text.style.display = parts.length ? 'block' : 'none';
+        }
+
+        var card = $('.card.today');
+        if (card) {
+          card.classList.remove('w-sunny', 'w-cloudy', 'w-stormy', 'w-off');
+          card.classList.add(WEATHER_CSS[key] || 'w-cloudy');
+        }
+        applyWeatherBackground(w && w.weather);
+      }
+
+      function parseHour(v) {
+        if (v == null) return null;
+        if (typeof v === 'number') return v * 24;
+        if (v instanceof Date) return v.getHours() + v.getMinutes() / 60;
+        var m = String(v).match(/^(\d{1,2}):(\d{2})/);
+        return m ? Number(m[1]) + Number(m[2]) / 60 : null;
+      }
+
+      function renderTracker(today) {
+        var svg = $('#t-graph'), dot = $('#t-dot');
+        var s = today.series || [];
+        if (s.length < 2) { svg.innerHTML = ''; dot.style.display = 'none'; return; }
+        var peak = 0;
+        for (var k = 0; k < s.length; k++) {
+          if (s[k].cum > peak) peak = s[k].cum;
+        }
+
+        var yMax = peak > 0 ? peak / 0.82 : 1;
+
+        function X(h) {
+          return (h / 24 * 100).toFixed(2);
+        }
+        function Y(c) {
+          return (96 - (c / yMax) * 70).toFixed(2);
+        }
+        var d = 'M' + s.map(function (p) { return X(p.h) + ',' + Y(p.cum); }).join(' L');
+        var last = s[s.length - 1];
+        svg.innerHTML =
+          '<path d="' + d + '" fill="none" stroke="rgba(255,255,255,0.30)" stroke-width="1.5" vector-effect="non-scaling-stroke"/>';
+        dot.style.left = (last.h / 24 * 100) + '%';
+        dot.style.top = (96 - (last.cum / yMax) * 70) + '%';
+        dot.style.display = 'block';
+      }
+
+      function deriveFromPerformance(dailyRows, currentRows) {
+        var weeks = [];
+        for (var i = 0; i < dailyRows.length; i++) {
+          var w = Math.floor(i / 7);
+          weeks[w] = weeks[w] || { week: w + 1, revenue: 0, energy: 0 };
+          var dp = Number(dailyRows[i].power) || 0;
+          weeks[w].revenue += Number(dailyRows[i].revenue) || 0;
+          weeks[w].energy += dp;
+        }
+
+        var incomeToday = 0, series = [];
+        var latestRow = null, latestHour = -1;
+        currentRows.forEach(function (r) {
+          incomeToday += Number(r.revenue) || 0;
+          var h = parseHour(r.time);
+          var power = (r.power == null || r.power === '')
+            ? null
+            : Number(r.power);
+
+          if (h != null && h >= latestHour) {
+            latestHour = h;
+            latestRow = r;
+          }
+
+          if (h != null && Number.isFinite(power)) {
+            series.push({ h: h, cum: power });
+          }
+        });
+
+
+        series.sort(function (a, b) {
+          return a.h - b.h;
+        });
+
+        var producedToday = series.length
+          ? series[series.length - 1].cum
+          : 0;
+
+        var last = latestRow ||
+          (currentRows.length ? currentRows[currentRows.length - 1] : null);
+
+        var today = {
+          produced: producedToday,
+          estimated: producedToday * 1.25,
+          income: incomeToday,
+          series: series,
+
+          weather: last
+            ? { temp: last.temp, weather: last.weather, wind: last.wind }
+            : null
+        };
+
+        return { weeks: weeks, today: today };
+      }
+
+      var BAR_COLOR = '#96C21F', LINE_COLOR = '#213B33';
+      var echartsRef = null, donutChart = null, timelineChart = null;
+
+      // The widget can be unhidden by its host page (e.g. a dashboard that keeps rows
+      // display:none until every widget reports ready) after this script has already run,
+      // so the chart container may still measure 0x0 the first time we try to render into
+      // it. Wait for a real layout size via ResizeObserver instead of calling
+      // echarts.init() on a zero-size element (which produces a permanently broken chart).
+      var pendingSizeObservers = new Map();
+      function whenSized(el, cb) {
+        if (el.clientWidth > 0 && el.clientHeight > 0) { cb(); return; }
+        if (pendingSizeObservers.has(el)) return;
+        var ro = new ResizeObserver(function () {
+          if (el.clientWidth > 0 && el.clientHeight > 0) {
+            ro.disconnect();
+            pendingSizeObservers.delete(el);
+            cb();
+          }
+        });
+        pendingSizeObservers.set(el, ro);
+        ro.observe(el);
+      }
+
+      function projectShare(p, uid) {
+        var total = p.investors.reduce(function (s, i) { return s + i.investmentAmount; }, 0);
+        var me = p.investors.find(function (i) { return i.investorId === uid; });
+        if (me) return total ? me.investmentAmount / total : 0;
+        return isSuperAdmin() ? 1 : 0;
+      }
+
+      function greenShades(n) {
+        function hexRgb(h) { h = h.replace('#', ''); return [parseInt(h.slice(0, 2), 16), parseInt(h.slice(2, 4), 16), parseInt(h.slice(4, 6), 16)]; }
+        function rgbHsl(r, g, b) {
+          r /= 255; g /= 255; b /= 255; var mx = Math.max(r, g, b), mn = Math.min(r, g, b), l = (mx + mn) / 2, h, s;
+          if (mx === mn) { h = s = 0; } else {
+            var d = mx - mn; s = l > 0.5 ? d / (2 - mx - mn) : d / (mx + mn);
+            h = mx === r ? (g - b) / d + (g < b ? 6 : 0) : mx === g ? (b - r) / d + 2 : (r - g) / d + 4; h /= 6;
+          } return [h, s, l];
+        }
+        function hslHex(h, s, l) {
+          function f(n) {
+            var k = (n + h * 12) % 12; var a = s * Math.min(l, 1 - l);
+            var c = l - a * Math.max(-1, Math.min(k - 3, Math.min(9 - k, 1))); return Math.round(c * 255);
+          }
+          return '#' + [f(0), f(8), f(4)].map(function (x) { return ('0' + x.toString(16)).slice(-2); }).join('');
+        }
+        var a = rgbHsl.apply(null, hexRgb('#96C21F')), b = rgbHsl.apply(null, hexRgb('#213B33')), out = [];
+        for (var i = 0; i < n; i++) {
+          var t = n > 1 ? i / (n - 1) : 0;
+          out.push(hslHex(a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t));
+        }
+        return out;
+      }
+
+      function renderDonut(slices, show) {
+        var box = $('#donut');
+        if (!show) { box.style.display = 'none'; return; }
+        box.style.display = 'block';
+        whenSized(box, function () {
+          donutChart = donutChart || echartsRef.init(box);
+          donutChart.setOption({
+            textStyle: { fontFamily: 'Lato' },
+            tooltip: { trigger: 'item', confine: true, formatter: function (p) { return p.name + ': ' + eur(p.value) + ' (' + p.percent + '%)'; } },
+            legend: { bottom: 0, itemGap: 14, textStyle: { fontSize: 13 } },
+            series: [{
+              type: 'pie', radius: ['40%', '56%'], center: ['50%', '38%'],
+              data: slices.map(function (s, i) {
+                return { name: s.name, value: Math.round(s.value), itemStyle: { color: greenShades(slices.length)[i] } };
+              }),
+              label: {
+                show: true,
+                formatter: function (p) {
+                  return p.percent.toLocaleString('de-DE') + '%';
+                },
+                fontSize: 13,
+                color: '#1b2733'
+              },
+              labelLine: { show: true, length: 6, length2: 6 }
+            }]
+          }, true);
+        });
+      }
+
+      function renderTimeline(weeks) {
+        var incomeLabel = t('performanceWidget.chart.income', 'Income');
+        var energyLabel = t('performanceWidget.chart.energy', 'Energy');
+        var weekLabel = t('performanceWidget.chart.week', 'Week');
+
+        var labels = weeks.map(function (w, i) { return weekLabel + ' ' + (w.week || (i + 1)); });
+        var timelineBox = $('#timeline');
+        whenSized(timelineBox, function () {
+          timelineChart = timelineChart || echartsRef.init(timelineBox);
+          timelineChart.setOption({
+            textStyle: { fontFamily: 'Lato' },
+            tooltip: {
+              trigger: 'axis',
+              formatter: function (params) {
+                var lines = params.map(function (p) {
+                  if (p.seriesName === incomeLabel) {
+                    return p.marker + ' ' + p.seriesName + ': ' + eur(p.value, 0);
+                  } else {
+                    return p.marker + ' ' + p.seriesName + ': ' + mwh(p.value);
+                  }
+                });
+                return params[0].axisValueLabel + '<br/>' + lines.join('<br/>');
+              }
+            },
+            legend: { data: [incomeLabel, energyLabel], bottom: 0, textStyle: { fontSize: 13 } },
+            grid: { left: '3%', right: '4%', top: '8%', bottom: '14%', containLabel: true },
+            xAxis: { type: 'category', data: labels, axisLabel: { fontSize: 13, interval: 0 } },
+            yAxis: [
+              {
+                type: 'value',
+                axisLabel: {
+                  fontSize: 13,
+                  formatter: function (v) { return Number(v).toLocaleString('de-DE') + ' \u20AC'; }
+                }
+              },
+              {
+                type: 'value',
+                position: 'right',
+                axisLabel: {
+                  fontSize: 13,
+                  formatter: function (v) { return Number(v).toLocaleString('de-DE') + ' MWh'; }
+                }
+              }
+            ],
+            series: [
+              {
+                name: incomeLabel, type: 'bar', data: weeks.map(function (w) {
+                  return Math.round(w.income);
+                }), barWidth: '45%', itemStyle: { color: BAR_COLOR, borderRadius: [4, 4, 0, 0] }
+              },
+              {
+                name: energyLabel, type: 'line', yAxisIndex: 1, data: weeks.map(function (w) {
+                  return round3sig(w.energy);
+                }), smooth: false, lineStyle: { color: LINE_COLOR, width: 2 }, itemStyle: { color: LINE_COLOR }
+              }
+            ]
+          }, true);
+        });
+      }
+
+      function aggregate(projects, uid) {
+        var weeks = [], today = { produced: 0, estimated: 0, income: 0, weather: null, series: [] }, total = 0, slices = [];
+        var hours = [];
+
+        projects.forEach(function (p) {
+          var sh = projectShare(p, uid);
+          var pTotal = 0;
+          p.weeks.forEach(function (w, i) {
+            var inc = w.revenue * sh;
+            pTotal += inc;
+            weeks[i] = weeks[i] || { income: 0, energy: 0 };
+            weeks[i].income += inc; weeks[i].energy += w.energy;
+          });
+          total += pTotal;
+          if (pTotal > 0) slices.push({ name: p.title, value: pTotal });
+          today.produced += Number(p.today.produced) || 0;
+          today.estimated += Number(p.today.estimated) || 0;
+          today.income += (Number(p.today.income) || 0) * sh;
+          if (!today.weather && p.today && p.today.weather) today.weather = p.today.weather;
+          if (p.today && p.today.series) {
+            p.today.series.forEach(function (pt) {
+              if (hours.indexOf(pt.h) === -1) hours.push(pt.h);
+            });
+          }
+        });
+
+        hours.sort(function (x, y) { return x - y; });
+
+        today.series = hours.map(function (h) {
+          var cum = 0;
+          projects.forEach(function (p) {
+            var s = (p.today && p.today.series) || [];
+            var lastVal = 0;
+            for (var q = 0; q < s.length; q++) {
+              if (s[q].h <= h) lastVal = s[q].cum;
+              else break;
+            }
+            cum += lastVal;
+          });
+          return { h: h, cum: cum };
+        });
+
+        return { weeks: weeks, today: today, total: total, slices: slices };
+      }
+
+      function renderView(projects, uid, sel) {
+        var list = sel === 'All' ? projects : projects.filter(function (p) { return p.title === sel; });
+        var a = aggregate(list, uid);
+        var all = aggregate(projects, uid);
+
+        var base = t('performanceWidget.weeklyChartTitle', 'Last 4 weeks - income & energy');
+        $('#timeline-label').textContent = sel === 'All' ? base : base + ' ' + t('performanceWidget.forProject', 'for') + ' ' + sel;
+
+        var todayBase = t('performanceWidget.today', 'Today');
+        $('#today-label').textContent =
+          sel === 'All' ? todayBase : todayBase + ' ' + t('performanceWidget.forProject', 'for') + ' ' + sel;
+
+        var adminView = isSuperAdmin() && !projects.some(function (p) { return p.investors.some(function (i) { return i.investorId === uid; }); });
+        $('#admin-note').style.display = adminView ? 'block' : 'none';
+
+        $('#total').innerHTML = eur(all.total) + '<span class="star">*</span>';
+        $('#t-produced').textContent = mwh(a.today.produced);
+
+        if (sel !== 'All' && list[0] && list[0].weatherActive) {
+          renderWeather(a.today.weather || {});
+        } else {
+          hideWeather();
+        }
+        renderTracker(a.today);
+        renderTimeline(a.weeks);
+
+        if (all.slices.length > 1) {
+          renderDonut(all.slices, true);
+        } else {
+          var only = projects.filter(function (p) { return projectShare(p, uid) > 0; })[0];
+          if (only) {
+            var oShare = projectShare(only, uid);
+            var oTotal = only.weeks.reduce(function (s, w) { return s + w.revenue; }, 0);
+            renderDonut([
+              { name: t('performanceWidget.chart.you', 'You'), value: oTotal * oShare },
+              { name: t('performanceWidget.chart.otherInvestors', 'Other investors'), value: oTotal * (1 - oShare) }
+            ], oShare > 0 && oShare < 1);
+          } else {
+            renderDonut([], false);
+          }
+        }
+      }
+
+      var loaded = false;
+      async function load() {
+        if (loaded) return;
+        loaded = true;
+        try {
+          applyStaticLocalization();
+          var api = getApi();
+          echartsRef = getEcharts();
+          var uid = getCurrentUserId();
+          if (!api || !echartsRef) {
+            showState(t('performanceWidget.apiUnavailable', 'Widget API not available.'));
+            return;
+          }
+
+          var l = window.parent && window.parent.SspaLib;
+          if (l) l.onLocaleChange(function () { applyStaticLocalization(); });
+
+          if (!uid) {
+            showState(t('performanceWidget.noUserFound', 'No logged-in user found.'));
+            return;
+          }
+
+          var logicalType = readConfig('logicalType', 'project-data');
+          var invSheet = readConfig('investorsSheet', 'investors');
+          var detSheet = readConfig('detailsSheet', 'details');
+
+          var accent = readConfig('accentColor', '#96C21F');
+          BAR_COLOR = accent;
+          LINE_COLOR = readConfig('energyColor', '#213B33');
+
+          var dataC = [];
+          try { var r1 = await api.contents.find({ contentLogicalType: logicalType, contentHidden: false, limit: 100 }); dataC = (r1 && r1.result) || []; }
+          catch (e) {
+            showState(t('performanceWidget.failedToLoad', 'Failed to load project data.'));
+            return;
+          }
+          if (!dataC.length) {
+            showState(t('generic.noProjectData', 'No project data found.'));
+            return;
+          }
+
+          var projects = [], seen = {};
+          for (var i = 0; i < dataC.length; i++) {
+            try {
+              var wb = await fetchWorkbook(api, dataC[i].id);
+              var details = kv(wb, detSheet);
+              if (!details.title || seen[details.title]) continue;
+              seen[details.title] = true;
+              projects.push({ title: details.title, spaceId: dataC[i].spaceId, investors: investors(wb, invSheet), weeks: [], today: { produced: 0, estimated: 0, income: 0 } });
+            } catch (e) {
+              console.error('project read fail', e);
+            }
+          }
+
+          if (!projects.length) {
+            showState(t('generic.noProjectData', 'No project data found.'));
+            return;
+          }
+
+          var perfType = readConfig('performanceLogicalType', 'performance-data');
+          var dailySheetName = readConfig('dailySheet', 'daily');
+          var currentSheetName = readConfig('currentDaySheet', 'currentDay');
+
+          for (var j = 0; j < projects.length; j++) {
+            try {
+              var rp = await api.contents.find({ contentLogicalType: perfType, contentHidden: false, spaceId: projects[j].spaceId, limit: 1 });
+              var pc = (rp && rp.result) || [];
+              if (!pc.length) continue;
+              var pwb = await fetchWorkbook(api, pc[0].id);
+              var derived = deriveFromPerformance(sheetRows(pwb, dailySheetName), sheetRows(pwb, currentSheetName));
+              projects[j].weeks = derived.weeks;
+              projects[j].today = derived.today;
+            } catch (e) {
+              console.error('perf read fail', projects[j].title, e);
+            }
+          }
+          await loadWeatherFlags(api, projects);
+          var wbType = readConfig('weatherBackgroundLogicalType', 'weather-background-image');
+          weatherBackgrounds = await loadWeatherBackgrounds(api, wbType);
+
+          var root = $('#filter');
+          var btn = $('#filter-btn');
+          var menu = $('#filter-menu');
+          var label = $('#filter-label');
+
+          var allLabel = t('performanceWidget.allProjects', 'All projects').toUpperCase();
+          var options = [{ value: 'All', text: allLabel }];
+          label.textContent = allLabel;
+          projects.slice().sort(function (a, b) {
+            return String(a.title).localeCompare(String(b.title));
+          })
+            .forEach(function (p) {
+              options.push({ value: p.title, text: String(p.title).toUpperCase() });
+            });
+
+          options.forEach(function (opt) {
+            var li = document.createElement('li');
+            li.textContent = opt.text;
+            li.setAttribute('role', 'option');
+            if (opt.value === 'All') li.className = 'active';
+            li.addEventListener('click', function () {
+              label.textContent = opt.text;
+              menu.querySelectorAll('li').forEach(function (x) {
+                x.classList.remove('active');
+              });
+              li.classList.add('active');
+              menu.classList.remove('open');
+              renderView(projects, uid, opt.value);
+            });
+            menu.appendChild(li);
+          });
+
+          btn.addEventListener('click', function (e) {
+            e.stopPropagation();
+            menu.classList.toggle('open');
+          });
+          document.addEventListener('click', function () {
+            menu.classList.remove('open');
+          });
+          menu.addEventListener('click', function (e) {
+            e.stopPropagation();
+          });
+
+          $('#state').style.display = 'none';
+          $('#report').style.display = 'block';
+          renderView(projects, uid, 'All');
+          window.addEventListener('resize', function () {
+            if (donutChart) donutChart.resize();
+            if (timelineChart) timelineChart.resize();
+          });
+        } catch (e) {
+          console.error('load() failed', e);
+          try { showState(t('performanceWidget.failedToLoad', 'Failed to load project data.')); } catch (e2) { /* ignore */ }
+        }
+      }
+
+      window.addEventListener('load', load);
+      setTimeout(load, 0);
+    })();
+  </script>
+</body>
+
+</html>

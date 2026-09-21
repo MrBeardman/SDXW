@@ -1,0 +1,237 @@
+<widget>
+
+	<!-- CONFIG -->
+	<script type="application/json" id="widget-config">
+		{
+		"hrid": "button-widget-v1",
+		"display": "Button Widget V1",
+		"description": "A configurable button - colors, typography, borders, alignment, hover effects.",
+		"category": "Basic",
+		"type": "widget",
+		"layoutUnique": false,
+		"icon": "gesture-tap-button",
+		"iconColor": "#96C21F",
+		"options": [
+			{ "key": "text", "label": "Button text", "type": "text", "default": "Click here" },
+			{ "key": "icon", "label": "Icon (MDI icon name, optional)", "type": "text", "default": "" },
+			{ "key": "link", "label": "Link", "type": "text", "default": "#" },
+			{ "key": "openInNewTab", "label": "Open in new tab", "type": "boolean", "default": false },
+
+			{ "key": "textColor", "label": "Text color", "type": "color", "default": "#FFFFFF" },
+			{ "key": "textColorHover", "label": "Text color (hover)", "type": "color", "default": "#FFFFFF" },
+			{ "key": "backgroundColor", "label": "Background color", "type": "color", "default": "#96C21F" },
+			{ "key": "backgroundColorHover", "label": "Background color (hover)", "type": "color", "default": "#7FA519" },
+			{ "key": "borderColor", "label": "Border color", "type": "color", "default": "#96C21F" },
+
+			{ "key": "fontSize", "label": "Font size in px (number only, no unit)", "type": "text", "default": "15" },
+			{ "key": "fontWeight", "label": "Font weight (100-900)", "type": "text", "default": "600" },
+
+			{ "key": "borderWidth", "label": "Border width in px (number only, no unit)", "type": "text", "default": "0" },
+			{ "key": "borderRadius", "label": "Border radius in px (number only, no unit)", "type": "text", "default": "8" },
+			{ "key": "paddingVertical", "label": "Vertical padding in px (number only, no unit)", "type": "text", "default": "12" },
+			{ "key": "paddingHorizontal", "label": "Horizontal padding in px (number only, no unit)", "type": "text", "default": "24" },
+
+			{ "key": "alignment", "label": "Alignment (left / center / right)", "type": "text", "default": "left" },
+			{ "key": "hoverEffect", "label": "Hover effect (none / lift / scale / glow)", "type": "text", "default": "lift" },
+			{ "key": "fullWidth", "label": "Full width", "type": "boolean", "default": false }
+		]
+		}
+	</script>
+
+	<!-- L10N -->
+	<script type="application/json" id="widget-l10n">
+		{
+		"de" : { "loading": "Wird geladen…" },
+		"en" : { "loading": "Loading…" }
+		}
+	</script>
+
+	<!-- STYLE -->
+	<style id="widget-styles">
+
+		@scope {
+
+			#widget-body {
+
+				/* hover effects (lift/scale/glow) all extend a few px past the button's own
+				   box - see patterns.md's "container needs its own inset padding" gotcha.
+				   glow is the largest reach here (a 6px, zero-blur box-shadow ring), so a
+				   uniform 10px comfortably covers all three effects on every side */
+				padding: 10px;
+
+				/* every px-based option is a bare number (see patterns.md's "type: text must
+				   be a single unbroken CSS token" gotcha) - the unit is appended here via
+				   calc(), not stored in the option value itself, so there's no "12 px" risk */
+				--btn-font-size: calc(var(--widget-fontSize) * 1px);
+				--btn-border-width: calc(var(--widget-borderWidth) * 1px);
+				--btn-border-radius: calc(var(--widget-borderRadius) * 1px);
+				--btn-padding-v: calc(var(--widget-paddingVertical) * 1px);
+				--btn-padding-h: calc(var(--widget-paddingHorizontal) * 1px);
+
+				#btn-wrap {
+					display: flex;
+				}
+
+				#btn-wrap.align-center {
+					justify-content: center;
+				}
+
+				#btn-wrap.align-right {
+					justify-content: flex-end;
+				}
+
+				.sdx-btn {
+					display: inline-flex;
+					align-items: center;
+					gap: 8px;
+					font: inherit;
+					font-size: var(--btn-font-size);
+					font-weight: var(--widget-fontWeight);
+					color: var(--widget-textColor);
+					background: var(--widget-backgroundColor);
+					border: var(--btn-border-width) solid var(--widget-borderColor);
+					border-radius: var(--btn-border-radius);
+					padding: var(--btn-padding-v) var(--btn-padding-h);
+					text-decoration: none;
+					cursor: pointer;
+					transition: background .18s ease, color .18s ease, transform .18s ease, box-shadow .18s ease;
+				}
+
+				.sdx-btn:hover {
+					color: var(--widget-textColorHover);
+					background: var(--widget-backgroundColorHover);
+				}
+
+				.sdx-btn.full-width {
+					width: 100%;
+					justify-content: center;
+				}
+
+				.sdx-btn-icon.d-none {
+					display: none;
+				}
+
+				/* hover-effect variants - the class is picked in JS from a fixed set, so only
+				   ever one of these applies at a time */
+
+				.sdx-btn.fx-lift:hover {
+					transform: translateY(-2px);
+				}
+
+				.sdx-btn.fx-scale:hover {
+					transform: scale(1.04);
+				}
+
+				.sdx-btn.fx-glow:hover {
+					box-shadow: 0 0 0 6px color-mix(in srgb, var(--widget-backgroundColor) 25%, transparent);
+				}
+
+				@media (prefers-reduced-motion: reduce) {
+					.sdx-btn {
+						transition: none;
+					}
+				}
+			}
+		}
+
+	</style>
+
+	<!-- TAGS -->
+	<div id="widget-body">
+
+		<!-- LOADING -->
+		<div widget-state="loading">Loading…</div>
+
+		<!-- ACTIVE -->
+		<div id="btn-wrap" class="d-none" widget-state="active">
+			<a class="sdx-btn" href="#">
+				<i class="sdx-btn-icon d-none" aria-hidden="true"></i>
+				<span class="sdx-btn-label" widget-text="text">Click here</span>
+			</a>
+		</div>
+
+		<!-- ERROR -->
+		<div class="d-none widget-error" widget-state="error">
+			<small>An error occured in widget</small>
+			<h2 widget-error-message></h2>
+		</div>
+
+	</div>
+
+	<!-- SCRIPT -->
+	<script id="widget-script">
+
+		(function () {
+
+			// Uses
+			const sdx = window.sdx;
+
+			// Widget
+			const widget = sdx.Widget.getInstance();
+
+			// Globals
+			const ALIGN_CLASSES = {left: 'align-left', center: 'align-center', right: 'align-right'};
+			const DEFAULT_ALIGN = 'align-left';
+			const HOVER_FX_CLASSES = {none: '', lift: 'fx-lift', scale: 'fx-scale', glow: 'fx-glow'};
+			const DEFAULT_HOVER_FX = 'fx-lift';
+
+			/**
+			 * Reads a free-text option meant to hold one of a small fixed set of values (a
+			 * stand-in for the still-unconfirmed "select" option type - see patterns.md) and
+			 * maps it to the matching CSS class, falling back to a safe default for anything
+			 * unrecognized (typos, blank, wrong case) rather than breaking the button.
+			 * @param {String} configKey The widget-config option key to read
+			 * @param {Object} classMap Map of accepted lowercase value -> CSS class
+			 * @param {String} fallbackClass Class to use when the value isn't in classMap
+			 * @returns {String} The resolved CSS class
+			 */
+			function _resolveOptionClass(configKey, classMap, fallbackClass)
+			{
+				const value = widget.getConfig(configKey).trim().toLowerCase();
+				const resolved = classMap[value];
+
+				return resolved !== undefined ? resolved : fallbackClass;
+			}
+
+			widget.onLoad(function () {
+
+				widget.findElement('[widget-state="loading"]').textContent = widget.resolveL10N('loading', {});
+
+				const wrap = widget.findElement('#btn-wrap');
+				const btn = widget.findElement('.sdx-btn');
+				const icon = widget.findElement('.sdx-btn-icon');
+
+				btn.href = widget.getConfig('link');
+
+				if (widget.getConfig('openInNewTab') === 'true') {
+					btn.target = '_blank';
+					btn.rel = 'noopener';
+				}
+
+				const iconName = widget.getConfig('icon').trim();
+
+				if (iconName) {
+					icon.className = 'sdx-btn-icon mdi mdi-' + iconName;
+				}
+
+				wrap.classList.add(_resolveOptionClass('alignment', ALIGN_CLASSES, DEFAULT_ALIGN));
+
+				const hoverFxClass = _resolveOptionClass('hoverEffect', HOVER_FX_CLASSES, DEFAULT_HOVER_FX);
+
+				if (hoverFxClass) {
+					btn.classList.add(hoverFxClass);
+				}
+
+				if (widget.getConfig('fullWidth') === 'true') {
+					btn.classList.add('full-width');
+				}
+			});
+
+			// Call after all prep to get widget loaded
+			widget.ready();
+
+		})();
+
+	</script>
+
+</widget>

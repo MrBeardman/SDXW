@@ -1,0 +1,384 @@
+<widget>
+
+	<!-- CONFIG -->
+	<script type="application/json" id="widget-config">
+		{
+		"hrid": "performance-report-widget-v1",
+		"display": "Performance Report Widget V1",
+		"description": "Charts the investor's income against the energy the selected projects produced",
+		"category": "PV",
+		"type": "widget",
+		"layoutUnique": false,
+		"icon": "chart-bar",
+		"iconColor": "#f5429c",
+		"options": [
+			{ "key": "accentColor", "label": "Accent color", "type": "color", "default": "#96C21F" },
+			{ "key": "energyColor", "label": "Energy line color", "type": "color", "default": "#213B33" }
+		]
+		}
+	</script>
+
+	<script type="application/json" id="widget-l10n">
+		{
+		"de" : {
+			"loading": "Wird geladen…",
+			"chartTitle": "Mein Einkommen & Gesamtenergie",
+			"chartTitleFor": "Mein Einkommen & Gesamtenergie für $project",
+			"income": "Mein Einkommen",
+			"energy": "Gesamt Energie",
+			"adminNote": "Projektsummen - Sie sind kein Investor",
+			"currentMonth": "Aktueller Monat",
+			"lastMonth": "Letzter Monat",
+			"currentYear": "Aktuelles Jahr",
+			"lastYear": "Letztes Jahr"
+		},
+		"en" : {
+			"loading": "Loading…",
+			"chartTitle": "My income & total energy",
+			"chartTitleFor": "My income & total energy for $project",
+			"income": "My income",
+			"energy": "Total energy",
+			"adminNote": "Project totals - you are not an investor",
+			"currentMonth": "Current month",
+			"lastMonth": "Last month",
+			"currentYear": "Current year",
+			"lastYear": "Last year"
+		}
+		}
+	</script>
+
+	<!-- STYLE -->
+	<style id="widget-styles">
+
+		@scope {
+
+			#widget-body {
+
+				position: relative;
+
+				#report-card {
+					padding: 16px 18px;
+					border-radius: var(--widget-border-radius);
+					background: var(--widget-default-background-color);
+                    height: 100%;
+				}
+
+				.report-head {
+					display: flex;
+					align-items: flex-start;
+					justify-content: space-between;
+					gap: 12px;
+				}
+
+				#report-admin-note {
+					margin-bottom: 6px;
+					font-weight: 600;
+					color: var(--widget-accentColor);
+				}
+
+				#report-title {
+					font-size: 16px;
+					letter-spacing: .5px;
+					text-transform: uppercase;
+					color: rgba(0, 0, 0, 0.5);
+				}
+
+				#report-chart {
+					width: 100%;
+					height: 285px;
+					margin-top: 8px;
+				}
+
+				#report-card,
+				[widget-state="loading"],
+				.widget-error {
+					min-height: 360px;
+				}
+
+				[widget-state="loading"] {
+					display: flex;
+					align-items: center;
+					justify-content: center;
+				}
+
+				[widget-state="updating"] {
+					position: absolute;
+					top: 10px;
+					right: 14px;
+					z-index: 2;
+					font-size: 20px;
+					color: rgba(0, 0, 0, 0.4);
+				}
+			}
+		}
+
+	</style>
+
+	<!-- TAGS -->
+	<div id="widget-body">
+
+		<!-- LOADING -->
+		<div widget-state="loading">Loading…</div>
+
+		<!-- ACTIVE -->
+		<div id="report-card" class="d-none" widget-state="active">
+			<div id="report-admin-note" class="d-none">Project totals</div>
+			<div class="report-head">
+				<div id="report-title">My income &amp; total energy</div>
+				<div id="report-period" class="pv-select pv-select-small">
+					<button type="button" class="pv-select-button">
+						<span pv-select-label></span>
+						<i class="mdi mdi-chevron-down" aria-hidden="true"></i>
+					</button>
+					<ul class="pv-select-menu" role="listbox"></ul>
+				</div>
+			</div>
+			<div id="report-chart"></div>
+		</div>
+
+		<!-- UPDATING -->
+		<div class="d-none" widget-state="updating">
+			<span class="mdi mdi-refresh-circle mdi-spin"></span>
+		</div>
+
+		<!-- ERROR -->
+		<div class="d-none widget-error" widget-state="error">
+			<small>An error occured in widget</small>
+			<h2 widget-error-message></h2>
+		</div>
+	</div>
+
+	<!-- SCRIPT -->
+	<script id="widget-script">
+
+		(function () {
+
+			// Uses
+			const sdx = window.sdx;
+			const api = sdx.api;
+			const number = sdx.number;
+			const pvInvestor = sdx.pvInvestor;
+			const pvPerformance = sdx.pvPerformance;
+            const pvSelect = sdx.pvSelect;
+
+			// Globals
+			const UPDATE_INTERVAL_MS = number.toMS(15, number.TIME_MIN);
+			const CHART_SELECTOR = '#report-chart';
+			const ENERGY_UNIT = 'MWh';
+			const CURRENCY_UNIT = '\u20AC';
+			const INCOME_SERIES = 0;
+            const CURRENT_MONTH_VALUE = 'current-month';
+
+			// Widget
+			const widget = sdx.Widget.getInstance();
+
+			// the chart outlives a single render, and the selection callback has no widget to hang it on
+			let reportChart = null;
+            // the selection callback outlives a single load, so it reads the latest investor from here
+			let investor = null;
+
+			/**
+			 * Builds the echarts options of the report: the investor's income as bars against
+			 * the projects' energy as a line on its own axis
+			 * See https://echarts.apache.org/examples/en/editor.html?c=mix-line-bar
+			 * @param {Array} days One entry per day of the month
+			 * @returns {Object} The chart options
+			 */
+			function _buildChartOptions(days)
+			{
+				// Read config
+				const incomeColor = widget.getConfig('accentColor');
+				const energyColor = widget.getConfig('energyColor');
+				const incomeLabel = widget.resolveL10N('income', {});
+				const energyLabel = widget.resolveL10N('energy', {});
+
+				// Prepare data for chart
+				const labels = [];
+				const income = [];
+				const energy = [];
+
+				for (const entry of days) {
+
+					labels.push(String(entry.day));
+					income.push(entry.income === null ? null : Math.round(entry.income));
+					energy.push(entry.energy);
+				}
+
+				return {
+					tooltip: {
+						trigger: 'axis',
+						formatter: function (points) {
+
+							const lines = points.map(function (point) {
+
+								const value = point.seriesIndex === INCOME_SERIES
+									? number.formatCurrency(point.value)
+									: number.formatNumber(point.value, ENERGY_UNIT);
+
+								return point.marker + ' ' + point.seriesName + ': ' + value;
+							});
+
+							return points[0].axisValueLabel + '<br>' + lines.join('<br>');
+						}
+					},
+					legend: {
+						bottom: 0,
+						itemGap: 14
+					},
+					grid: {
+						left: '3%',
+						right: '4%',
+						top: '8%',
+						bottom: '14%',
+						containLabel: true
+					},
+					xAxis: {
+						type: 'category',
+						data: labels
+					},
+					yAxis: [
+						{
+							type: 'value',
+							axisLabel: {
+								formatter: function (value) {
+									return number.formatNumber(value, CURRENCY_UNIT);
+								}
+							}
+						},
+						{
+							type: 'value',
+							position: 'right',
+							axisLabel: {
+								formatter: function (value) {
+									return number.formatNumber(value, ENERGY_UNIT);
+								}
+							}
+						}
+					],
+					series: [
+						{
+							name: incomeLabel,
+							type: 'bar',
+							data: income,
+							barWidth: '60%',
+							itemStyle: {color: incomeColor, borderRadius: [4, 4, 0, 0]}
+						},
+						{
+							name: energyLabel,
+							type: 'line',
+							yAxisIndex: 1,
+							data: energy,
+							lineStyle: {color: energyColor, width: 2},
+							itemStyle: {color: energyColor}
+						}
+					]
+				};
+			}
+
+			/**
+			 * Names the project in the heading when the chooser points at a single one
+			 * @param {Array} projects The selected projects
+			 * @returns {undefined}
+			 */
+			function _renderTitle(projects)
+			{
+				const project = pvPerformance.namedProject(projects);
+
+				widget.findElement('#report-title').textContent = project === null
+					? widget.resolveL10N('chartTitle', {})
+					: widget.resolveL10N('chartTitleFor', {project: project.title});
+			}
+
+           /**
+			 * Measures the chart again whenever its box changes size, because the widget body
+			 * is still hidden while onLoad runs and the chart would stay at that first size
+			 * @param {Object} chart The chart to keep measured
+			 * @returns {undefined}
+			 */
+			function _observeSize(chart)
+			{
+				const observer = new ResizeObserver(function () {
+					chart.resize();
+				});
+
+				observer.observe(widget.findElement(CHART_SELECTOR));
+			}
+
+			/**
+			 * Renders the heading, the total and the chart of the selected projects
+			 * @returns {undefined}
+			 */
+			function _renderReport()
+			{
+				const projects = pvPerformance.selectedProjects(investor);
+				const month = pvPerformance.aggregateMonth(projects);
+
+				_renderTitle(projects);
+
+				if (reportChart === null) {
+
+					reportChart = widget.createChart(_buildChartOptions(month.days), CHART_SELECTOR);
+
+					_observeSize(reportChart);
+					return;
+				}
+
+				reportChart.setOption(_buildChartOptions(month.days), true);
+			}
+
+			/**
+			 * Fills the period select, which shows the periods but does not narrow anything down yet
+			 * @todo the daily sheet only holds the current month, so there is nothing else to show
+			 * @returns {undefined}
+			 */
+			function _renderPeriods()
+			{
+				const options = [];
+
+				for (const entry of pvPerformance.buildPeriods()) {
+					options.push({text: entry.title || widget.resolveL10N(entry.key, {}), value: entry.value});
+				}
+
+				pvSelect.fill(widget.findElement('#report-period'), options, CURRENT_MONTH_VALUE, null);
+			}
+
+			widget.onLoad(async function () 
+            {
+				widget.findElement('[widget-state="loading"]').textContent = widget.resolveL10N('loading', {});
+
+				_renderPeriods();
+
+				investor = await pvInvestor.loadInvestorCached();
+
+				// a super admin who holds no shares sees the whole project
+				if (api.isSuperAdmin() && !investor.shares.length) {
+
+					const note = widget.findElement('#report-admin-note');
+
+					note.textContent = widget.resolveL10N('adminNote', {});
+					note.classList.remove('d-none');
+				}
+
+				_renderReport();
+
+				pvPerformance.onSelectionChange(function () {
+					_renderReport();
+				});
+			});
+
+			widget.setAutoUpdate(UPDATE_INTERVAL_MS);
+			widget.onUpdate(async function () 
+            {
+				investor = await pvInvestor.loadInvestorCached();
+
+				_renderReport();
+			});
+
+			// Call after all prep to load the widget
+			widget.ready();
+
+		})();
+
+	</script>
+
+</widget>

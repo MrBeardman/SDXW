@@ -1,0 +1,359 @@
+<widget>
+
+    <!-- CONFIG -->
+    <script type="application/json" id="widget-config">
+		{
+            "hrid": "portfolio-widget-v1",
+		    "display": "Portfolio Widget V1",
+		    "description": "Shows the investor's estimated income split by project",
+            "category": "PV",
+		    "type": "widget",
+		    "layoutUnique": false,
+		    "icon": "chart-donut",
+	    	"iconColor": "#58B21F",
+		    "options": [
+		        { "key": "chart-color-start", "label": "Color Start", "type": "color", "default": "#58B21F" },
+		        { "key": "chart-color-end", "label": "Color End", "type": "color", "default": "#213B33" },
+		        { "key": "show-legend", "label": "Show legend", "type": "boolean", "default": "true" },
+                { "key": "accentColor", "label": "Accent color", "type": "color", "default": "#96C21F" }
+		    ]
+		}
+	</script>
+
+    <!-- L10N -->
+    <script type="application/json" id="widget-l10n">
+		{
+		"de" : {
+		"loading": "Wird geladen…",
+		"estimatedIncome": "Geschätztes Gesamteinkommen",
+		"you": "Sie",
+		"otherInvestors": "Andere Investoren",
+        "currentMonth": "Aktueller Monat",
+		"lastMonth": "Letzter Monat",
+		"currentYear": "Aktuelles Jahr",
+		"lastYear": "Letztes Jahr"
+		},
+		"en" : {
+		"loading": "Loading…",
+		"estimatedIncome": "Estimated total income",
+		"you": "You",
+		"otherInvestors": "Other investors",
+        "currentMonth": "Current month",
+		"lastMonth": "Last month",
+		"currentYear": "Current year",
+		"lastYear": "Last year"
+		}
+		}
+	</script>
+
+    <!-- STYLE -->
+    <style id="widget-styles">
+        @scope {
+
+            #widget-body {
+
+                position: relative;
+
+                .portfolio-card {
+                    padding: 16px 18px;
+                    border-radius: var(--widget-border-radius);
+                    background: var(--widget-default-background-color);
+                    height: 100%;
+                }
+
+                .portfolio-label {
+                    font-size: 16px;
+                    letter-spacing: .5px;
+                    text-transform: uppercase;
+                    color: rgba(0, 0, 0, 0.5);
+                }
+
+                .portfolio-total {
+                    margin-top: 4px;
+                    font-size: 36px;
+                    font-weight: 800;
+                }
+
+                .portfolio-head {
+                    display: flex;
+                    align-items: flex-start;
+                    justify-content: space-between;
+                    gap: 12px;
+                }
+
+                .portfolio-total .estimated {
+                    font-size: 17px;
+                    vertical-align: super;
+                    color: var(--widget-chart-color-start);
+                }
+
+                .portfolio-donut {
+                    width: 100%;
+                    height: 240px;
+                    margin-top: 6px;
+                }
+
+                [widget-state="loading"] {
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    min-height: 320px;
+                }
+
+                [widget-state="updating"] {
+                    position: absolute;
+                    top: 10px;
+                    right: 14px;
+                    z-index: 2;
+                    font-size: 20px;
+                    color: rgba(0, 0, 0, 0.4);
+                }
+
+                .widget-error {
+                    min-height: 320px;
+                }
+            }
+        }
+    </style>
+
+    <!-- TAGS -->
+    <div id="widget-body">
+
+        <!-- LOADING -->
+        <div widget-state="loading">Loading…</div>
+
+        <!-- ACTIVE -->
+        <div class="portfolio-card d-none" widget-state="active">
+            <div class="portfolio-head">
+                <div>
+                    <div id="portfolio-label" class="portfolio-label">Estimated total income</div>
+                    <div class="portfolio-total">
+                        <span id="portfolio-total">—</span><span class="estimated">*</span>
+                    </div>
+                </div>
+                <div id="portfolio-period" class="pv-select pv-select-small">
+					<button type="button" class="pv-select-button">
+						<span pv-select-label></span>
+						<i class="mdi mdi-chevron-down" aria-hidden="true"></i>
+					</button>
+					<ul class="pv-select-menu" role="listbox"></ul>
+				</div>
+            </div>
+            <div id="portfolio-donut" class="portfolio-donut"></div>
+        </div>
+
+        <!-- UPDATING -->
+        <div class="d-none" widget-state="updating">
+            <span class="mdi mdi-refresh-circle mdi-spin"></span>
+        </div>
+
+        <!-- ERROR -->
+        <div class="d-none widget-error" widget-state="error">
+            <small>An error occured in widget</small>
+            <h2 widget-error-message></h2>
+        </div>
+    </div>
+
+    <!-- SCRIPT -->
+    <script id="widget-script">
+
+        (function () {
+
+            // Uses
+            const sdx = window.sdx;
+            const number = sdx.number;
+            const pvInvestor = sdx.pvInvestor;
+            const pvPerformance = sdx.pvPerformance;
+            const pvSelect = sdx.pvSelect;
+            const charts = sdx.charts;
+
+            // Globals
+            const UPDATE_INTERVAL_MS = number.toMS(15, number.TIME_MIN);
+            const DONUT_SELECTOR = '#portfolio-donut';
+            const CURRENT_MONTH_VALUE = 'current-month';
+
+            // Widget
+            const widget = sdx.Widget.getInstance();
+
+            /**
+             * Picks what the donut splits: the projects, or a single project between the investor and the other investors
+             * @param {Object} portfolio The aggregated portfolio
+             * @returns {Array} The slices, empty when there is nothing worth drawing
+             */
+            function _buildSlices(portfolio) 
+            {
+                if (portfolio.singleProject === null) {
+                    return portfolio.slices;
+                }
+
+                const myShare = portfolio.singleProject.myShare;
+
+                // a share of none or all leaves nothing to divide
+                if (myShare <= 0 || myShare >= 1) {
+                    return [];
+                }
+
+                return [
+                    {
+                        name: widget.resolveL10N('you', {}),
+                        value: portfolio.singleProject.revenue * myShare
+                    },
+                    {
+                        name: widget.resolveL10N('otherInvestors', {}),
+                        value: portfolio.singleProject.revenue * (1 - myShare)
+                    }
+                ];
+            }
+
+            /**
+             * Builds the echarts options of the donut
+             * See https://echarts.apache.org/examples/en/editor.html?c=pie-doughnut
+             * @param {Array} slices The slices to draw
+             * @returns {Object} The chart options
+             */
+            function _buildChartOptions(slices) 
+            {
+                // Read config
+                const colorStart = widget.getConfig('chart-color-start');
+                const colorEnd = widget.getConfig('chart-color-end');
+                const showLegend = widget.getConfig('show-legend') === 'true';
+                const colorPalette = charts.buildShades(colorStart, colorEnd, slices.length);
+
+                // Prepare data for chart
+                const data = [];
+
+                for (const slice of slices) {
+
+                    data.push({
+                        name: slice.name,
+                        value: Math.round(slice.value)
+                    });
+                }
+
+                return {
+                    tooltip: {
+                        trigger: 'item',
+                        confine: true,
+                        formatter: function (slice) {
+                            return slice.name + '<br><b>' + number.formatCurrency(slice.value) + '</b> (' + slice.percent + '%)';
+                        }
+                    },
+                    legend: {
+                        bottom: 0,
+                        itemGap: 14,
+                        show: showLegend
+                    },
+                    label: {
+                        show: true,
+                        formatter: function (slice) {
+                            return number.formatNumber(slice.percent) + '%';
+                        }
+                    },
+                    series: [
+                        {
+                            color: colorPalette,
+                            type: 'pie',
+                            radius: ['50%', '78%'],
+                            center: ['50%', '40%'],
+                            avoidLabelOverlap: false,
+                            data: data,
+                            labelLine: {
+                                show: true,
+                                length: 6,
+                                length2: 6
+                            }
+                        }
+                    ]
+                };
+            }
+
+            /**
+             * Measures the chart again whenever its box changes size, because the widget body
+             * is still hidden while onLoad runs and the chart would stay at that first size
+             * @param {Object} chart The chart to keep measured
+             * @returns {undefined}
+             */
+            function _observeSize(chart) 
+            {
+                const observer = new ResizeObserver(function () {
+                    chart.resize();
+                });
+
+                observer.observe(widget.findElement(DONUT_SELECTOR));
+            }
+
+            /**
+             * Renders the total and the donut, hiding the donut when there is nothing to split
+             * @param {Object} portfolio The aggregated portfolio
+             * @returns {undefined}
+             */
+            function _renderCard(portfolio) 
+            {
+                const donut = widget.findElement(DONUT_SELECTOR);
+                const slices = _buildSlices(portfolio);
+
+                widget.findElement('#portfolio-total').textContent = number.formatCurrency(portfolio.total);
+
+                if (!slices.length) {
+                    donut.classList.add('d-none');
+                    return;
+                }
+
+                donut.classList.remove('d-none');
+
+                if (this._chart) {
+                    this._chart.setOption(_buildChartOptions(slices), true);
+                    return;
+                }
+
+                this._chart = widget.createChart(_buildChartOptions(slices), DONUT_SELECTOR);
+
+                _observeSize(this._chart);
+            }
+
+            /**
+             * Fills the period select, which shows the periods but does not narrow anything down yet
+             * @todo the daily sheet only holds the current month, so there is nothing else to show
+             * @returns {undefined}
+             */
+           	function _renderPeriods()
+			{
+				const options = [];
+
+				for (const entry of pvPerformance.buildPeriods()) {
+					options.push({text: entry.title || widget.resolveL10N(entry.key, {}), value: entry.value});
+				}
+
+				pvSelect.fill(widget.findElement('#portfolio-period'), options, CURRENT_MONTH_VALUE, null);
+			}
+
+            widget.onLoad(async function () 
+            {
+                widget.findElement('[widget-state="loading"]').textContent = widget.resolveL10N('loading', {});
+                widget.findElement('#portfolio-label').textContent = widget.resolveL10N('estimatedIncome', {});
+
+                _renderPeriods();
+
+                const investor = await pvInvestor.loadInvestorCached();
+
+                // the donut always shows every project the investor holds, whatever is selected
+                _renderCard.call(this, pvPerformance.aggregatePortfolio(investor.projects));
+            });
+
+            // Refresh every 15 mins
+            widget.setAutoUpdate(UPDATE_INTERVAL_MS);
+            widget.onUpdate(async function () 
+            {
+                const investor = await pvInvestor.loadInvestorCached();
+
+                _renderCard.call(this, pvPerformance.aggregatePortfolio(investor.projects));
+            });
+
+            // Call after all prep to load the widget
+            widget.ready();
+
+        })();
+
+    </script>
+
+</widget>

@@ -1,0 +1,113 @@
+<!--
+	This is a controller widget.
+	It contains only a l10n and a script block but no html and style block
+	- as components and their styling come from layout
+//-->
+<widget>
+
+    <!-- CONFIG -->
+    <script type="application/json" id="widget-config">
+        {
+			"hrid" : "preview-test-widget-v1",
+			"display" : "Preview Test Controller V1",
+			"description" : "Simple example showcasing preview controller",
+			"category" : "Testing",
+			"type": "widget",
+			"layoutUnique" : true,
+			"icon" : "alert-box",
+			"iconColor" : "#FF8C00",
+			"options": [
+				{ "key": "id-url-display", "label": "Display Id", "type": "text", "default": "url-display" },
+				{ "key": "id-url-open", "label": "Open Id", "type": "text", "default": "url-display" },
+				{ "key": "id-url-copy", "label": "Copy Id", "type": "text", "default": "url-display" },
+				{ "key": "id-url-yt-panel", "label": "Youtube Panel Id", "type": "text", "default": "url-yt-panel" }
+			]
+        }
+    </script>
+
+    <!-- SCRIPT -->
+    <script id="widget-script">
+
+		(function () {
+
+			// Uses
+			const sdx = window.sdx;
+			const api = sdx.api;
+
+			// Retrieve the widget instance from the own widget lib
+			const widget = sdx.Widget.getInstance();
+
+			widget.onLoad(async function () {
+
+				//console.log("Loading", this);
+
+				// Current content id
+				const currentContentId = api.getCurrentItemId();
+				//console.log('currentContentId', currentContentId);
+
+				// Current content metadata
+				const currentContent = await api.getContentById(currentContentId);
+				//console.log('currentContent', currentContent);
+
+				// Current content data
+				const currentContentStream = await api.streamContentById(currentContentId);
+				//console.log('currentContentStream', currentContentStream);
+
+				const currentContentString = await currentContentStream.text();
+				//console.log('currentContentString', currentContentString);
+
+
+				// Retrieve URL from url file
+				let url = null;
+				const match = /URL=(.*)/gi.exec(currentContentString);
+				if (match && match.length === 2) {
+					url = match[1];
+				}
+				if (url === null) {
+					return;
+				}
+				//console.log(url);
+
+				// Render url in label component
+				const labelId = widget.getConfig('id-url-display');
+				const label = document.querySelector(`#${labelId} p`);
+				if (label !== null) {
+					label.textContent = url;
+				}
+
+				// Adapt button component to open url
+				const openId = widget.getConfig('id-url-open');
+				const open = document.querySelector(`#${openId} a`);
+				if (open !== null) {
+					open.setAttribute("href", url);
+				}
+
+				// Adapt clipboard button to add url to clipboard
+				const copyId = widget.getConfig('id-url-copy');
+				const copy = document.querySelector(`#${copyId} a`);
+				copy.onclick = function () {
+					navigator.clipboard.writeText(url);
+				};
+
+				// Match youtube -> embed videoplayer and display
+				const matchYT = /.*youtube.*v=(\w*)/gi.exec(currentContentString);
+				if (matchYT && matchYT.length === 2) {
+					const ytPanelId = widget.getConfig('id-url-yt-panel');
+					const ytPanelContainer = document.querySelector(`#${ytPanelId}`);
+					const ytPanel = document.querySelector(`#${ytPanelId} div.sdx-basic-spacer`);
+					let ytVideo = matchYT[1];
+					ytPanelContainer.classList.remove('d-none');
+					// See https://developers.google.com/youtube/youtube_player_demo
+					ytPanel.innerHTML = '<iframe id="ytplayer" type="text/html" src="https://www.youtube.com/embed/' + ytVideo + '" width="720" height="405" frameborder="0" allowfullscreen></iframe>';
+					return;
+				}
+			});
+
+			// Call after all prep to get widget loaded
+			widget.ready();
+
+		})();
+
+    </script>
+
+</widget>

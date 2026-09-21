@@ -1,0 +1,779 @@
+<widget>
+
+	<!-- CONFIG -->
+	<script type="application/json" id="widget-config">
+		{
+		"hrid": "jpg-gallery-widget-v3",
+		"display": "JPG Gallery Widget V3",
+		"description": "Lists JPG files with search, owner/sort filters, thumbnail preview and a download link.",
+		"category": "Files",
+		"type": "widget",
+		"layoutUnique": false,
+		"icon": "image-multiple-outline",
+		"iconColor": "#96C21F",
+		"options": [
+			{ "key": "accentColor", "label": "Accent color", "type": "color", "default": "#96C21F" },
+			{ "key": "limit", "label": "Max files per extension", "type": "text", "default": "100" },
+			{ "key": "showOwner", "label": "Show file owner", "type": "boolean", "default": true },
+			{ "key": "showSize", "label": "Show file size", "type": "boolean", "default": true },
+			{ "key": "showDate", "label": "Show upload date", "type": "boolean", "default": true }
+		]
+		}
+	</script>
+
+	<!-- L10N -->
+	<script type="application/json" id="widget-l10n">
+		{
+		"de" : {
+			"loading": "Wird geladen…",
+			"searchPlaceholder": "Nach Dateiname suchen…",
+			"noFilesFound": "Keine JPG-Dateien gefunden.",
+			"noMatches": "Keine Treffer.",
+			"ownedBy": "Besitzer: $name",
+			"download": "Herunterladen",
+			"unknownOwner": "Unbekannt",
+			"filters": "Filter",
+			"allOwners": "Alle Besitzer",
+			"sortNameAsc": "Name (A-Z)",
+			"sortNewest": "Neueste zuerst",
+			"sortOldest": "Älteste zuerst",
+			"sortLargest": "Größte zuerst",
+			"sortSmallest": "Kleinste zuerst"
+		},
+		"en" : {
+			"loading": "Loading…",
+			"searchPlaceholder": "Search by file name…",
+			"noFilesFound": "No JPG files found.",
+			"noMatches": "No matches.",
+			"ownedBy": "Owner: $name",
+			"download": "Download",
+			"unknownOwner": "Unknown",
+			"filters": "Filters",
+			"allOwners": "All owners",
+			"sortNameAsc": "Name (A-Z)",
+			"sortNewest": "Newest first",
+			"sortOldest": "Oldest first",
+			"sortLargest": "Largest first",
+			"sortSmallest": "Smallest first"
+		}
+		}
+	</script>
+
+	<!-- STYLE -->
+	<style id="widget-styles">
+
+		@scope {
+
+			#widget-body {
+
+				--jpg-gap: 14px;
+				--jpg-pill-padding: 12px 22px;
+				--jpg-thumb-height: 150px;
+				--jpg-skeleton-height: 230px;
+
+				/* ===== toolbar ===== */
+
+				#jpg-toolbar {
+					display: flex;
+					flex-wrap: wrap;
+					align-items: center;
+					gap: 10px;
+					margin-bottom: var(--jpg-gap);
+				}
+
+				#jpg-search {
+					flex: 1 1 220px;
+					max-width: 320px;
+					box-sizing: border-box;
+					padding: var(--jpg-pill-padding);
+					border: 1px solid rgba(0, 0, 0, 0.12);
+					border-radius: 999px;
+					background: var(--widget-default-background-color);
+					font: inherit;
+					font-size: 14px;
+					-webkit-appearance: none;
+					appearance: none;
+					transition: box-shadow .15s ease, border-color .15s ease;
+				}
+
+				#jpg-search:focus {
+					outline: none;
+					border-color: transparent;
+					box-shadow: 0 0 0 2px var(--widget-accentColor);
+				}
+
+				#jpg-filters-toggle {
+					display: inline-flex;
+					align-items: center;
+					gap: 6px;
+					padding: var(--jpg-pill-padding);
+					border: 1px solid rgba(0, 0, 0, 0.12);
+					border-radius: 999px;
+					background: var(--widget-default-background-color);
+					font: inherit;
+					font-size: 14px;
+					font-weight: 600;
+					cursor: pointer;
+					transition: background .15s ease, color .15s ease, border-color .15s ease;
+				}
+
+				#jpg-filters-toggle:hover,
+				#jpg-filters-toggle.is-active {
+					background: var(--widget-accentColor);
+					border-color: var(--widget-accentColor);
+					color: #fff;
+				}
+
+				#jpg-filters-panel {
+					display: flex;
+					flex-wrap: wrap;
+					gap: 10px;
+					margin: -2px 0 var(--jpg-gap);
+				}
+
+				#jpg-filters-panel .pv-select-button {
+					padding: 8px 14px 8px 16px;
+					font-size: 13px;
+				}
+
+				/* ===== skeleton (loading) ===== */
+
+				#jpg-skeleton-grid {
+					display: grid;
+					grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+					gap: var(--jpg-gap);
+				}
+
+				.jpg-skeleton-card {
+					height: var(--jpg-skeleton-height);
+					border-radius: var(--widget-border-radius);
+					background: linear-gradient(100deg, rgba(0, 0, 0, 0.05) 30%, rgba(0, 0, 0, 0.11) 50%, rgba(0, 0, 0, 0.05) 70%);
+					background-size: 200% 100%;
+					animation: jpg-shimmer 1.4s ease-in-out infinite;
+				}
+
+				/* ===== grid + cards =====
+				   auto-fill (not auto-fit) keeps empty tracks reserved instead of collapsing
+				   them, so a handful of remaining cards keep their normal width instead of
+				   stretching to fill the row when a filter narrows the results down */
+
+				#jpg-grid {
+					display: grid;
+					grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+					gap: var(--jpg-gap);
+					padding: 5px;
+				}
+
+				.jpg-card {
+					/* grid rows stretch their items by default, but that stretch only reaches
+					   the immediate grid child (the cloned template wrapper) - height: 100%
+					   here is what actually makes the visible card fill that reserved space,
+					   so every card in a row ends up the same height */
+					height: 100%;
+					border-radius: var(--widget-border-radius);
+					background: var(--widget-default-background-color);
+					overflow: hidden;
+					display: flex;
+					flex-direction: column;
+					animation: jpg-card-in .5s ease both;
+					transition: transform .15s ease, box-shadow .2s ease;
+					will-change: transform;
+				}
+
+				.jpg-card:hover {
+					box-shadow: 0 18px 34px -14px rgba(0, 0, 0, 0.4);
+				}
+
+				.jpg-thumb {
+					position: relative;
+					display: block;
+					flex-shrink: 0;
+					height: var(--jpg-thumb-height);
+					overflow: hidden;
+					background-color: rgba(0, 0, 0, 0.06);
+					background-position: center;
+					background-size: cover;
+					transition: background-size .35s ease;
+				}
+
+				.jpg-card:hover .jpg-thumb {
+					background-size: 112%;
+				}
+
+				.jpg-meta-chip {
+					position: absolute;
+					top: 8px;
+					right: 8px;
+					z-index: 1;
+					padding: 3px 9px;
+					border-radius: 999px;
+					background: rgba(0, 0, 0, 0.55);
+					color: #fff;
+					font-size: 11px;
+					font-weight: 600;
+					letter-spacing: .2px;
+					-webkit-backdrop-filter: blur(6px);
+					backdrop-filter: blur(6px);
+				}
+
+				.jpg-body {
+					flex: 1;
+					display: flex;
+					flex-direction: column;
+					padding: 10px 12px;
+				}
+
+				.jpg-name {
+					margin: 0 0 4px;
+					font-size: 14px;
+					font-weight: 700;
+					color: #1b2733;
+					word-break: break-word;
+					/* caps long file names at 2 lines instead of growing the card - same
+					   line-clamp pattern as .description in overview-widget-v1 */
+					display: -webkit-box;
+					-webkit-line-clamp: 2;
+					-webkit-box-orient: vertical;
+					overflow: hidden;
+				}
+
+				.jpg-owner {
+					margin: 0 0 8px;
+					font-size: 12px;
+					color: rgba(0, 0, 0, 0.55);
+				}
+
+				.jpg-download {
+					/* pins the download link to the bottom of the card regardless of how many
+					   lines the name/owner above it took up */
+					margin-top: auto;
+					display: inline-flex;
+					align-items: center;
+					gap: 6px;
+					margin-left: -6px;
+					padding: 4px 10px;
+					border-radius: 999px;
+					font-size: 13px;
+					font-weight: 600;
+					color: var(--widget-accentColor);
+					text-decoration: none;
+					transition: box-shadow .2s ease, transform .15s ease;
+				}
+
+				.jpg-download:hover {
+					transform: translateX(1px);
+					box-shadow: 0 0 0 6px color-mix(in srgb, var(--widget-accentColor) 16%, transparent);
+				}
+
+				#jpg-empty {
+					padding: 24px;
+					text-align: center;
+					color: rgba(0, 0, 0, 0.5);
+				}
+
+				/* ===== motion ===== */
+
+				@keyframes jpg-shimmer {
+					from { background-position: 200% 0; }
+					to { background-position: -200% 0; }
+				}
+
+				@keyframes jpg-card-in {
+					from { opacity: 0; transform: translateY(12px) scale(.96); }
+					to { opacity: 1; transform: none; }
+				}
+
+				@media (prefers-reduced-motion: reduce) {
+					.jpg-card, .jpg-skeleton-card, .jpg-thumb, .jpg-download {
+						animation: none !important;
+						transition: none !important;
+					}
+				}
+			}
+		}
+
+	</style>
+
+	<!-- TAGS -->
+	<div id="widget-body">
+
+		<!-- LOADING (shimmer skeleton) -->
+		<div id="jpg-skeleton-grid" widget-state="loading">
+			<div class="jpg-skeleton-card"></div>
+			<div class="jpg-skeleton-card"></div>
+			<div class="jpg-skeleton-card"></div>
+			<div class="jpg-skeleton-card"></div>
+			<div class="jpg-skeleton-card"></div>
+			<div class="jpg-skeleton-card"></div>
+		</div>
+
+		<!-- ACTIVE -->
+		<div class="d-none" widget-state="active">
+
+			<div id="jpg-toolbar">
+				<input id="jpg-search" type="text">
+				<button id="jpg-filters-toggle" type="button">
+					<i class="mdi mdi-tune-variant" aria-hidden="true"></i>
+					<span id="jpg-filters-toggle-label"></span>
+				</button>
+			</div>
+
+			<div id="jpg-filters-panel" class="d-none">
+				<div id="jpg-owner-filter" class="pv-select pv-select-small">
+					<button type="button" class="pv-select-button">
+						<span pv-select-label></span>
+						<i class="mdi mdi-chevron-down" aria-hidden="true"></i>
+					</button>
+					<ul class="pv-select-menu" role="listbox"></ul>
+				</div>
+				<div id="jpg-sort" class="pv-select pv-select-small">
+					<button type="button" class="pv-select-button">
+						<span pv-select-label></span>
+						<i class="mdi mdi-chevron-down" aria-hidden="true"></i>
+					</button>
+					<ul class="pv-select-menu" role="listbox"></ul>
+				</div>
+			</div>
+
+			<div id="jpg-grid">
+				<div id="jpg-card-template" class="d-none">
+					<div class="jpg-card">
+						<a class="jpg-thumb" template-background-image="image" template-link="viewLink" target="_blank" rel="noopener">
+							<span class="jpg-meta-chip" template-text="metaLabel" template-visible="hasMeta"></span>
+						</a>
+						<div class="jpg-body">
+							<p class="jpg-name" template-text="name"></p>
+							<p class="jpg-owner" template-text="ownerLabel" template-visible="showOwner"></p>
+							<a class="jpg-download" template-link="downloadLink" download>
+								<i class="mdi mdi-download" aria-hidden="true"></i>
+								<span template-text="downloadLabel"></span>
+							</a>
+						</div>
+					</div>
+				</div>
+			</div>
+
+			<div id="jpg-empty" class="d-none"></div>
+		</div>
+
+		<!-- ERROR -->
+		<div class="d-none widget-error" widget-state="error">
+			<small>An error occured in widget</small>
+			<h2 widget-error-message></h2>
+		</div>
+	</div>
+
+	<!-- SCRIPT -->
+	<script id="widget-script">
+
+		(function () {
+
+			// Uses
+			const sdx = window.sdx;
+			const api = sdx.api;
+			const date = sdx.date;
+			const number = sdx.number;
+			const pvSelect = sdx.pvSelect; // from pv-select-lib-v1 - must be loaded on the page, same implicit dependency other non-PV-category widgets don't declare either
+
+			// Widget
+			const widget = sdx.Widget.getInstance();
+
+			// Globals
+			// @todo the exact SQL LIKE syntax/case-sensitivity for contentName was confirmed to
+			// exist (matchType "like" via dlApi.contents.getQueryDimensions()) but not tested
+			// end-to-end yet - verify against real data once this widget is loaded in SDX.
+			const JPG_NAME_PATTERNS = ['%.jpg', '%.jpeg'];
+			const JPG_MIME_TYPE = 'image/jpeg';
+			const ALL_OWNERS_VALUE = '';
+			const DEFAULT_SORT = 'name-asc';
+			const CARD_STAGGER_MS = 35;
+
+			/**
+			 * Queries every JPG file the current user can access, across all spaces (no
+			 * spaceId filter is applied, matching the "all accessible spaces" scope) and with
+			 * no logicalType narrowing - purely a file-name match. Goes through api.findLatest
+			 * (which already wraps dlApi.contents.find + version dedup) rather than calling
+			 * dlApi directly, per the "always use sdx.api wrappers" rule.
+			 * There is no mimeType dimension to query on (confirmed via getQueryDimensions), so
+			 * a LIKE-on-name query narrows the candidates and the real mimeType is then
+			 * double-checked client-side before trusting a result. "limit" applies PER pattern,
+			 * so up to 2x limit contents may be fetched before the mimeType check runs.
+			 * @returns {Promise} The matching, deduped jpg contents
+			 */
+			async function _loadJpgFiles()
+			{
+				const limit = Number(widget.getConfig('limit')) || 100;
+
+				const batches = await Promise.all(
+					JPG_NAME_PATTERNS.map(function (pattern) {
+						return api.findLatest({contentName: pattern, contentHidden: false, limit: limit});
+					})
+				);
+
+				const merged = api.keepLatestVersions([].concat.apply([], batches));
+
+				if (api.isDeveloperMode()) {
+					// exactly what the query returns, before the mimeType safety check below -
+					// inspect this to see every field available to configure/display/filter on
+					console.log('[jpg-gallery] raw contents from query', merged);
+				}
+
+				return merged.filter(function (content) {
+					return content.mimeType === JPG_MIME_TYPE;
+				});
+			}
+
+			/**
+			 * Best-effort lookup of display names for the given user ids, batched in one call.
+			 * dlApi.users.getMany(ids) returns a typed collection ({type, value}), the same
+			 * shape as dlApi.contents.getQueryDimensions() - NOT a plain array - so .value has
+			 * to be unwrapped. Falls back to one dlApi.users.get(id) call per id if getMany
+			 * ever fails (e.g. a future API change), so a single bad id can't break the batch.
+			 * @param {Array} userIds Unique user ids to resolve
+			 * @returns {Promise} Map of id -> display name, unresolved ids simply missing
+			 */
+			async function _loadOwnerNames(userIds)
+			{
+				const dlApi = api.getApi();
+				const names = {};
+
+				if (!userIds.length) {
+					return names;
+				}
+
+				try {
+
+					const response = await dlApi.users.getMany(userIds);
+					const users = Array.from((response && response.value) || []);
+
+					users.forEach(function (user) {
+						names[user.id] = user.display || user.login || user.email;
+					});
+
+				} catch (error) {
+
+					await Promise.all(userIds.map(async function (id) {
+						try {
+							const user = await dlApi.users.get(id);
+							names[id] = user && (user.display || user.login || user.email);
+						} catch (innerError) {
+							// leave unresolved, template falls back to the unknown-owner label
+						}
+					}));
+				}
+
+				return names;
+			}
+
+			/**
+			 * Formats a byte count as the nearest B/KB/MB/GB, reusing the shared de-DE number
+			 * formatting so it reads consistently with every other widget's numbers.
+			 * @param {Number} sizeBytes
+			 * @returns {String} The formatted size, or '' when there is nothing to show
+			 */
+			function _formatFileSize(sizeBytes)
+			{
+				if (!sizeBytes) {
+					return '';
+				}
+
+				const units = ['B', 'KB', 'MB', 'GB'];
+				let value = sizeBytes;
+				let unitIndex = 0;
+
+				while (value >= 1024 && unitIndex < units.length - 1) {
+					value /= 1024;
+					unitIndex++;
+				}
+
+				const rounded = unitIndex === 0 ? Math.round(value) : Math.round(value * 10) / 10;
+
+				return number.formatNumber(rounded, units[unitIndex]);
+			}
+
+			/**
+			 * Turns raw contents into template data
+			 * @param {Array} contents The jpg contents
+			 * @param {Object} ownerNames Map of userId -> display name
+			 * @param {Object} toggles {showOwner, showSize, showDate} config flags
+			 * @returns {Array} The prepared entries, sorted by file name
+			 */
+			function _prepareData(contents, ownerNames, toggles)
+			{
+				const dlApi = api.getApi();
+				const downloadLabel = widget.resolveL10N('download', {});
+				const unknownOwner = widget.resolveL10N('unknownOwner', {});
+
+				const data = contents.map(function (content) {
+
+					const ownerName = ownerNames[content.ownedBy] || unknownOwner;
+					// content.created is a real epoch-ms timestamp, NOT an Excel serial number -
+					// wrap it in a Date first, since date.toDate() would otherwise misread a raw
+					// number as a spreadsheet date serial
+					const createdDate = new Date(content.created);
+
+					const metaParts = [];
+
+					if (toggles.showSize) {
+						metaParts.push(_formatFileSize(content.size));
+					}
+
+					if (toggles.showDate) {
+						metaParts.push(date.formatDate(createdDate));
+					}
+
+					return {
+						name: content.name,
+						image: content.id,
+						viewLink: dlApi.contents.streamAsGetURL(content.id, true),
+						// preview=false is documented ("download as preview") to request a real,
+						// non-preview download rather than inline display - see content-api.md
+						downloadLink: dlApi.contents.streamAsGetURL(content.id, false),
+						ownerName: ownerName,
+						ownerLabel: widget.resolveL10N('ownedBy', {name: ownerName}),
+						downloadLabel: downloadLabel,
+						showOwner: toggles.showOwner,
+						metaLabel: metaParts.join(' \u00B7 '),
+						hasMeta: metaParts.length > 0,
+						createdAt: createdDate.getTime(),
+						sizeBytes: Number(content.size) || 0,
+						// only used by the client-side filters below, kept separate from the query
+						searchName: String(content.name || '').toLowerCase()
+					};
+				});
+
+				data.sort(function (first, second) {
+					return String(first.name).localeCompare(String(second.name));
+				});
+
+				return data;
+			}
+
+			/**
+			 * Compares two prepared entries for the chosen sort order
+			 * @param {Object} first
+			 * @param {Object} second
+			 * @param {String} sortKey One of the jpg-sort option values
+			 * @returns {Number} Standard comparator result
+			 */
+			function _compareForSort(first, second, sortKey)
+			{
+				switch (sortKey) {
+					case 'date-desc': return second.createdAt - first.createdAt;
+					case 'date-asc': return first.createdAt - second.createdAt;
+					case 'size-desc': return second.sizeBytes - first.sizeBytes;
+					case 'size-asc': return first.sizeBytes - second.sizeBytes;
+					default: return String(first.name).localeCompare(String(second.name));
+				}
+			}
+
+			/**
+			 * Builds the owner filter options from the owners actually present in the loaded
+			 * data - a client-side list, not a fresh query, matching the rest of this widget
+			 * @param {Array} data The prepared entries
+			 * @returns {Array} The pv-select options, "all owners" first
+			 */
+			function _buildOwnerOptions(data)
+			{
+				const names = [];
+
+				data.forEach(function (entry) {
+					if (names.indexOf(entry.ownerName) === -1) {
+						names.push(entry.ownerName);
+					}
+				});
+
+				names.sort(function (first, second) {
+					return first.localeCompare(second);
+				});
+
+				const options = [{text: widget.resolveL10N('allOwners', {}), value: ALL_OWNERS_VALUE}];
+
+				names.forEach(function (name) {
+					options.push({text: name, value: name});
+				});
+
+				return options;
+			}
+
+			/**
+			 * Re-applies the search text, owner filter and sort order onto the already-rendered
+			 * cards - a pure client-side pass, no network calls, kept separate from the jpg
+			 * content query in _loadJpgFiles above. Also drives the empty-state message: an
+			 * empty gallery from the start ("no files found") is not an error and gets its own
+			 * friendly message here, distinct from a filter narrowing a non-empty gallery down
+			 * to nothing ("no matches").
+			 * @param {Array} data The prepared entries, same order as cardRefs
+			 * @param {Array} cardRefs The rendered card elements, same order as data
+			 * @param {Element} container The grid the cards live in
+			 * @param {Object} state {search, owner, sort} - current filter/sort state
+			 * @returns {undefined}
+			 */
+			function _applyFilters(data, cardRefs, container, state)
+			{
+				const empty = widget.findElement('#jpg-empty');
+				const query = state.search.trim().toLowerCase();
+				let visibleCount = 0;
+
+				const order = data.map(function (entry, index) { return index; });
+
+				order.sort(function (first, second) {
+					return _compareForSort(data[first], data[second], state.sort);
+				});
+
+				order.forEach(function (index) {
+					container.appendChild(cardRefs[index]);
+				});
+
+				cardRefs.forEach(function (card, index) {
+
+					const entry = data[index];
+					const matchesSearch = entry.searchName.indexOf(query) > -1;
+					const matchesOwner = state.owner === ALL_OWNERS_VALUE || entry.ownerName === state.owner;
+					const visible = matchesSearch && matchesOwner;
+
+					card.classList.toggle('d-none', !visible);
+
+					if (visible) {
+						visibleCount++;
+					}
+				});
+
+				empty.textContent = data.length === 0
+					? widget.resolveL10N('noFilesFound', {})
+					: widget.resolveL10N('noMatches', {});
+
+				empty.classList.toggle('d-none', visibleCount > 0);
+			}
+
+			/**
+			 * Wires the search box, the owner/sort dropdowns and the filters-panel toggle, then
+			 * runs one initial _applyFilters pass so the empty state (if any) shows right away
+			 * @param {Array} data The prepared entries
+			 * @param {Array} cardRefs The rendered card elements
+			 * @param {Element} container The grid the cards live in
+			 * @returns {undefined}
+			 */
+			function _wireFilters(data, cardRefs, container)
+			{
+				const state = {search: '', owner: ALL_OWNERS_VALUE, sort: DEFAULT_SORT};
+				const searchInput = widget.findElement('#jpg-search');
+				const filtersToggle = widget.findElement('#jpg-filters-toggle');
+				const filtersPanel = widget.findElement('#jpg-filters-panel');
+
+				searchInput.placeholder = widget.resolveL10N('searchPlaceholder', {});
+				widget.findElement('#jpg-filters-toggle-label').textContent = widget.resolveL10N('filters', {});
+
+				searchInput.addEventListener('input', function () {
+					state.search = searchInput.value;
+					_applyFilters(data, cardRefs, container, state);
+				});
+
+				filtersToggle.addEventListener('click', function () {
+					filtersToggle.classList.toggle('is-active');
+					filtersPanel.classList.toggle('d-none');
+				});
+
+				pvSelect.fill(
+					widget.findElement('#jpg-owner-filter'),
+					_buildOwnerOptions(data),
+					ALL_OWNERS_VALUE,
+					function (value) {
+						state.owner = value;
+						_applyFilters(data, cardRefs, container, state);
+					}
+				);
+
+				pvSelect.fill(
+					widget.findElement('#jpg-sort'),
+					[
+						{text: widget.resolveL10N('sortNameAsc', {}), value: 'name-asc'},
+						{text: widget.resolveL10N('sortNewest', {}), value: 'date-desc'},
+						{text: widget.resolveL10N('sortOldest', {}), value: 'date-asc'},
+						{text: widget.resolveL10N('sortLargest', {}), value: 'size-desc'},
+						{text: widget.resolveL10N('sortSmallest', {}), value: 'size-asc'}
+					],
+					DEFAULT_SORT,
+					function (value) {
+						state.sort = value;
+						_applyFilters(data, cardRefs, container, state);
+					}
+				);
+
+				_applyFilters(data, cardRefs, container, state);
+			}
+
+			/**
+			 * Adds the cursor-tilt hover effect to a card (a native re-implementation of the
+			 * "tilt card" idea, since the widget runtime has no build step/React to install a
+			 * component library with)
+			 * @param {Element} card
+			 * @returns {undefined}
+			 */
+			function _wireTilt(card)
+			{
+				const MAX_TILT_DEG = 5;
+
+				card.addEventListener('mousemove', function (event) {
+
+					const rect = card.getBoundingClientRect();
+					const px = (event.clientX - rect.left) / rect.width - 0.5;
+					const py = (event.clientY - rect.top) / rect.height - 0.5;
+
+					card.style.transform = 'perspective(700px) rotateX(' + (-py * MAX_TILT_DEG) + 'deg)'
+						+ ' rotateY(' + (px * MAX_TILT_DEG) + 'deg) translateY(-4px)';
+				});
+
+				card.addEventListener('mouseleave', function () {
+					card.style.transform = '';
+				});
+			}
+
+			widget.onLoad(async function () {
+
+				const toggles = {
+					showOwner: widget.getConfig('showOwner') === 'true',
+					showSize: widget.getConfig('showSize') === 'true',
+					showDate: widget.getConfig('showDate') === 'true'
+				};
+
+				const contents = await _loadJpgFiles();
+
+				const ownerIds = toggles.showOwner
+					? contents.map(function (content) { return content.ownedBy; }).filter(Boolean)
+					: [];
+
+				const ownerNames = toggles.showOwner ? await _loadOwnerNames(ownerIds) : {};
+				const data = _prepareData(contents, ownerNames, toggles);
+
+				if (api.isDeveloperMode()) {
+					console.log('[jpg-gallery] prepared card data', data);
+				}
+
+				const container = widget.findElement('#jpg-grid');
+				const template = widget.createTemplate('#jpg-card-template');
+				const cardRefs = [];
+
+				// .process (not .append) so each rendered clone can be kept for filtering/tilt
+				template.process(data, function (cardInstance) {
+
+					cardInstance.style.animationDelay = (cardRefs.length * CARD_STAGGER_MS) + 'ms';
+					_wireTilt(cardInstance.querySelector('.jpg-card'));
+
+					container.append(cardInstance);
+					cardRefs.push(cardInstance);
+				});
+
+				// no throw for zero results - an empty gallery is not an error, _wireFilters'
+				// initial _applyFilters pass shows the friendly "no files found" message instead
+				_wireFilters(data, cardRefs, container);
+			});
+
+			// Call after all prep to get widget loaded
+			widget.ready();
+
+		})();
+
+	</script>
+
+</widget>

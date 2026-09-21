@@ -1,0 +1,92 @@
+<!--
+A horizontal divider line: thickness, color, width, alignment and vertical spacing.
+Every option is a CSS custom property read straight from CSS - no data attributes, no JS.
+All option labels are localized (en/de).
+//-->
+<widget>
+
+	<!-- CONFIG -->
+	<script type="application/json" id="widget-config">
+		{
+		"hrid": "divider-widget-v1",
+		"display": "Divider Widget V1",
+		"description": "A horizontal divider line - thickness, color, width, alignment, spacing.",
+		"category": "AI Examples/Basic",
+		"type": "widget",
+		"layoutUnique": false,
+		"icon": "minus",
+		"iconColor": "#96C21F",
+		"options": [
+			{ "key": "thickness", "label": { "en": "Thickness (px)", "de": "Stärke (px)" }, "type": "text", "default": "1" },
+			{ "key": "color", "label": { "en": "Color", "de": "Farbe" }, "type": "color", "default": "#DDDDDD" },
+			{ "key": "width", "label": { "en": "Width (%)", "de": "Breite (%)" }, "type": "text", "default": "100" },
+			{
+				"key": "align",
+				"label": { "en": "Alignment", "de": "Ausrichtung" },
+				"type": "select",
+				"default": "start",
+				"options": [
+					{ "label": { "en": "Left", "de": "Links" }, "value": "start" },
+					{ "label": { "en": "Center", "de": "Mittig" }, "value": "center" },
+					{ "label": { "en": "Right", "de": "Rechts" }, "value": "end" }
+				]
+			},
+			{ "key": "spacing", "label": { "en": "Spacing above/below (px)", "de": "Abstand oben/unten (px)" }, "type": "text", "default": "16" }
+		]
+		}
+	</script>
+
+	<!-- STYLE -->
+	<style id="widget-styles">
+
+		@scope {
+
+			#widget-body {
+
+				/* A line narrower than 100% is a block, so text-align can't place it. Flex can -
+				   and start/center/end are valid justify-content keywords too, so the same select
+				   shape as the label/heading widgets flows straight in. */
+				display: flex;
+				justify-content: var(--widget-align);
+
+				/* bare numbers in the options, units appended here (see patterns.md) */
+				padding-block: calc(var(--widget-spacing) * 1px);
+
+				#divider {
+					/* reset the UA <hr> look (inset border + auto margins), then draw our own line */
+					border: none;
+					margin: 0;
+					width: calc(var(--widget-width) * 1%);
+					height: calc(var(--widget-thickness) * 1px);
+					background-color: var(--widget-color);
+				}
+			}
+		}
+
+	</style>
+
+	<!-- TAGS -->
+	<!-- No loading/active/error state machine - synchronous and config-only (see patterns.md) -->
+	<div id="widget-body">
+		<hr id="divider">
+	</div>
+
+	<!-- SCRIPT -->
+	<script id="widget-script">
+
+		(function () {
+
+			// Uses
+			const sdx = window.sdx;
+
+			// Widget
+			const widget = sdx.Widget.getInstance();
+
+			// Nothing to wire - every option is consumed directly by the CSS above
+			widget.ready();
+
+		})();
+
+	</script>
+
+</widget>

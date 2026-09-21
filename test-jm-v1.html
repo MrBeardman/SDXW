@@ -1,0 +1,79 @@
+<widget>
+
+    <!-- CONFIG -->
+    <script type="application/json" id="widget-config">
+        {
+		"hrid" : "test-jm-widget-v1",
+		"display" : "Jan Test Widget V1",
+		"description" : "Test widget of Jan Displays current time as the title. The title is also localized based on the user language.",
+		"category" : "Test",
+		"type": "widget",
+		"layoutUnique" : false,
+		"icon" : "cog",
+		"iconColor" : "#FF00FF", 
+		"options": [
+		{ "key": "title", "label": "Your dad", "type": "text", "default": "Jan Test Widget V1" },
+		{ "key": "title-color", "label": "Your mom", "type": "color", "default": "#213B33" },
+		{"key": "background-image", "label": "Your sister", "type": "text", "default": "" }
+		]
+        }
+    </script>
+
+	<!-- STYLE -->
+	<style id="widget-styles">
+
+		@scope {
+
+			#widget-body {
+
+				#title {
+					color: var(--widget-title-color);
+				}
+			}
+		}
+
+	</style>
+
+    <!-- TAGS -->
+    <div id="widget-body">
+        <h1 id="title">-</h1>
+    </div>
+
+    <!-- SCRIPT -->
+    <script id="widget-script">
+
+		(function () {
+			
+			//get current time
+			const currentTime = new Date();
+
+			// Uses
+			const sdx = window.sdx;
+
+			// Widget
+			const widget = sdx.Widget.getInstance();
+
+			// Initial update
+			widget.onLoad(async function () {
+
+				// Set the title to the current time
+				const currentTimeString = currentTime.toLocaleTimeString();
+				widget.findElement('#title').textContent = currentTimeString;
+			});
+
+			widget.setAutoUpdate(1000); // Update every second
+			widget.onUpdate(async function () {
+				
+				
+		// Set the title to the current time
+				const currentTimeString = (new Date()).toLocaleTimeString();
+				widget.findElement('#title').textContent = currentTimeString;
+			});
+			
+			widget.ready();
+			
+		})();
+
+    </script>
+
+</widget>

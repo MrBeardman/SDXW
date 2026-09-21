@@ -1,0 +1,313 @@
+<widget>
+
+	<!-- CONFIG -->
+	<script type="application/json" id="widget-config">
+		{
+		"hrid": "sdx-lib-v1",
+		"display": "SDX Library V1",
+		"description": "General SDX widget library",
+		"category": "SDX",
+		"layoutUnique": true,
+		"type": "library",
+		"loadIndex": 0,
+		"icon": "cog",
+		"iconColor": "#123456"
+		}
+	</script>
+
+	<!-- STYLE -->
+	<style id="widget-styles">
+
+		widget {
+			--widget-border-radius: 15px;
+			--widget-default-background-color: #fff;
+			--widget-default-error-background-color: #FFD4D4;
+			--widget-default-error-color: #AA0000;
+		}
+
+		.widget-error {
+			border-radius: var(--widget-border-radius);
+			background-color: var(--widget-default-error-background-color);
+			color: var(--widget-default-error-color);
+			position: relative;
+			display: flex;
+			justify-content: center;
+			align-items: center;
+			flex-direction: column;
+		}
+
+	</style>
+
+	<!-- SCRIPT -->
+	<script id="widget-script">
+
+		(function () {
+
+			// Package
+			const sdx = window.sdx = {};
+			/**
+			 * The core Widget class
+			 */
+			sdx.Widget = (function () {
+
+				function Widget(root)
+				{
+					this._root = root;
+					this._loadCallback = function () { };
+					this._updateCallback = function () { };
+					this._autoUpdateIntervalMs = -1;
+					this._postUpdateVisibilityDelayMs = 1000;
+
+					const config = this.getConfiguration();
+
+					this.hrid = config.hrid;
+					this.display = config.display;
+					this.description = config.description;
+					this.category = config.category;
+				}
+
+				Widget._preloadCallbacks = [];
+
+				/**
+				 * Add l10n to widgets
+				 * @returns {L10N}
+				 */
+				Widget.prototype.getConfiguration = function ()
+				{
+					return JSON.parse(this.findElement('#widget-config').textContent);
+				};
+
+				/**
+				 * Add global preloader that will be called for ALL widgets.
+				 * This method is intended for extending widgets with libraries.
+				 * @param {type} callback
+				 * @returns {undefined}
+				 */
+				Widget.onPreload = function (callback)
+				{
+					Widget._preloadCallbacks.push(callback);
+				};
+
+				/**
+				 * Creates a new widget instance from the given widget script referencing the current widget tag
+				 * @returns {Widget}
+				 */
+				Widget.getInstance = function ()
+				{
+					var root = (document.currentScript && document.currentScript.parentNode) || document;
+
+					return new Widget(root);
+				};
+
+				/**
+				 * Returns the defining <widget> tag
+				 * @returns {Element}
+				 */
+				Widget.prototype.getRoot = function ()
+				{
+					return this._root;
+				};
+
+				/**
+				 * Returns the first element for the given selector
+				 * @param {String} selector
+				 * @returns {Element}
+				 */
+				Widget.prototype.findElement = function (selector)
+				{
+					return this._root.querySelector(selector);
+				};
+
+				/**
+				 * Returns the all elements for the given selector
+				 * @param {String} selector
+				 * @returns {NodeList}
+				 */
+				Widget.prototype.findElements = function (selector)
+				{
+					return this._root.querySelectorAll(selector);
+				};
+
+				/**
+				 * Adds class to selector elements
+				 * @param {String} selector
+				 * @param {String} classStr
+				 * @returns {undefined}
+				 */
+				Widget.prototype.addClassToElements = function (selector, classStr)
+				{
+					const elements = this.findElements(selector);
+					for (const element of elements) {
+						element.classList.add(classStr);
+					}
+				};
+
+				/**
+				 * Adds class to selector elements
+				 * @param {String} selector
+				 * @param {String} classStr
+				 * @returns {undefined}
+				 */
+				Widget.prototype.removeClassFromElements = function (selector, classStr)
+				{
+					const elements = this.findElements(selector);
+					for (const element of elements) {
+						element.classList.remove(classStr);
+					}
+				};
+
+				/**
+				 * Returns the resolved and trimmed config property or '' if the config was not found
+				 * @param {String} key
+				 * @returns {String}
+				 */
+				Widget.prototype.getConfig = function (key)
+				{
+					var value = getComputedStyle(this._root).getPropertyValue("--widget-" + key);
+					value = (value || '').trim();
+					return value;
+				};
+
+				/**
+				 *
+				 * @param {type} callback
+				 * @returns {undefined}
+				 */
+				Widget.prototype.onLoad = function (callback)
+				{
+					this._loadCallback = callback;
+				};
+
+				/**
+				 *
+				 * @param {type} callback
+				 * @returns {undefined}
+				 */
+				Widget.prototype.onUpdate = function (callback)
+				{
+					this._updateCallback = callback;
+				};
+
+				/**
+				 *
+				 * @param {Number} intervalMs > 0 will set auto interval otherwise will deactivate
+				 * @returns {undefined}
+				 */
+				Widget.prototype.setAutoUpdate = function (intervalMs)
+				{
+					this._autoUpdateIntervalMs = intervalMs;
+				};
+
+
+				/**
+				 * Internal method for handling errors visualization etc.
+				 * @param {Error} error
+				 * @returns {undefined}
+				 */
+				Widget.prototype._handleError = function (error)
+				{
+					// Set state "error" visible
+					this.addClassToElements('[widget-state="updating"]', 'd-none');
+					this.addClassToElements('[widget-state="loading"]', 'd-none');
+					this.addClassToElements('[widget-state="active"]', 'd-none');
+					this.removeClassFromElements('[widget-state="error"]', 'd-none');
+
+					// @todo hand over proper error handling in SDX
+					console.error("Error loading widget - ", error);
+
+					// Set error message via data attribute
+					const elements = this.findElements('[widget-error-message]');
+					for (const element of elements) {
+						element.innerHTML = error.message;
+					}
+				};
+
+				/**
+				 *
+				 * @returns {undefined}
+				 */
+				Widget.prototype._scheduleNextUpdate = function ()
+				{
+					// Add auto update handler if auto update is >0
+					if (this._autoUpdateIntervalMs > 0) {
+
+						// Provide applied callback to have a stable this
+						var thiz = this;
+						var _onUpdate = async function () {
+
+							try {
+								thiz.removeClassFromElements('[widget-state="updating"]', 'd-none');
+
+								await thiz._updateCallback();
+
+								thiz._scheduleNextUpdate();
+
+								setTimeout(function () {
+									thiz.addClassToElements('[widget-state="updating"]', 'd-none');
+								}, thiz._postUpdateVisibilityDelayMs);
+							} catch (error) {
+								thiz._handleError(error);
+							}
+
+						};
+
+						setTimeout(_onUpdate, this._autoUpdateIntervalMs);
+					}
+				};
+
+				/**
+				 *
+				 * @returns {undefined}
+				 */
+				Widget.prototype.onReady = async function ()
+				{
+					try {
+						// Call all global preloaders in order
+						for (const preloadCallback of Widget._preloadCallbacks) {
+							await preloadCallback.apply(this);
+						}
+
+						// Call the load callback of this widget
+						await this._loadCallback();
+
+						// Set state "active" visible
+						this.addClassToElements('[widget-state="updating"]', 'd-none');
+						this.addClassToElements('[widget-state="loading"]', 'd-none');
+						this.removeClassFromElements('[widget-state="active"]', 'd-none');
+						this.addClassToElements('[widget-state="error"]', 'd-none');
+
+						// Schedule update if active
+						this._scheduleNextUpdate();
+
+					} catch (error) {
+						this._handleError(error);
+					}
+				};
+
+				/**
+				 * Call ready at the end of your widget script to activate the widget
+				 * @returns {undefined}
+				 */
+				Widget.prototype.ready = function ()
+				{
+					this.removeClassFromElements('[widget-state="loading"]', 'd-none');
+
+					// Provide applied callback to have a stable this
+					var thiz = this;
+					var _onReady = function () {
+						thiz.onReady();
+					};
+
+					// Add to required event listeners in container
+					window.addEventListener("load", _onReady);
+					setTimeout(_onReady, 0);
+				};
+
+				return Widget;
+
+			})();
+
+		})();
+
+	</script>
+</widget>

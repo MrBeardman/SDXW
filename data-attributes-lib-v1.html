@@ -1,0 +1,136 @@
+<widget>
+
+	<!-- CONFIG -->
+	<script type="application/json" id="widget-config">
+		{
+		"hrid": "data-attributes-lib-v1",
+		"display": "Data Attributes Library V1",
+		"description": "This is the data attributes abstraction for sdx widgets.",
+		"category": "SDX",
+		"layoutUnique": true,
+		"type": "library",
+		"loadIndex": 10,
+		"icon": "code-less-than-or-equal",
+		"iconColor": "#003FA5"
+		}
+	</script>
+
+	<!-- SCRIPT -->
+	<script id="widget-script">
+
+		(function () {
+
+			// Uses
+			const sdx = window.sdx;
+			const api = sdx.api;
+			const dlApi = api.getApi();
+
+			// Globals
+			sdx.ATTRIBUTE_WIDGET_TEXT = 'widget-text';
+			sdx.ATTRIBUTE_WIDGET_VISIBLE = 'widget-visible';
+			sdx.ATTRIBUTE_WIDGET_BACKGROUND_IMAGE = 'widget-background-image';
+			sdx.ATTRIBUTE_WIDGET_LINK = 'widget-link';
+			sdx.ATTRIBUTE_WIDGET_LINK_NEW_TAB = 'widget-link-new-tab';
+
+			/**
+			 * Apply the widget-text data attribute to replace the inner html for those elements
+			 * @param {Widget} widget
+			 * @param {string} attribute
+			 * @param {Function} func
+			 * @returns {undefined}
+			 */
+			function _apply(widget, attribute, func)
+			{
+				var elements = widget.findElements('[' + attribute + ']');
+
+				for (const element of elements) {
+
+					var config = element.getAttribute(attribute);
+					var value = widget.getConfig(config);
+
+					func(element, value);
+				}
+			}
+
+			/**
+			 * Apply the widget-text data attribute to replace the inner html for those elements
+			 * @param {Widget} widget
+			 * @returns {undefined}
+			 */
+			function _applyText(widget)
+			{
+				_apply(widget, sdx.ATTRIBUTE_WIDGET_TEXT, function (element, value) {
+					element.innerHTML = value;
+				});
+			}
+
+			/**
+			 * Apply the widget-visible data attribute to set the visibility for those elements by adding class "d-none".
+			 * @param {Widget} widget
+			 * @returns {undefined}
+			 */
+			function _applyVisible(widget)
+			{
+				_apply(widget, sdx.ATTRIBUTE_WIDGET_VISIBLE, function (element, value) {
+					if (value !== 'true') {
+						element.classList.add("d-none");
+					}
+				});
+			}
+
+			/**
+			 * Apply the widget-background-image data attribute to set the background image cia css for those elements.
+			 * @param {Widget} widget
+			 * @returns {undefined}
+			 */
+			function _applyBackgroundImage(widget)
+			{
+
+				_apply(widget, sdx.ATTRIBUTE_WIDGET_BACKGROUND_IMAGE, function (element, value) {
+					element.style.backgroundImage = 'url(' + dlApi.contents.streamAsGetURL(value, true) + ')';
+				});
+			}
+
+			/**
+			 * Apply the widget-link data attribute to replace the href for those elements
+			 * @param {Widget} widget
+			 * @returns {undefined}
+			 */
+			function _applyLink(widget)
+			{
+				_apply(widget, sdx.ATTRIBUTE_WIDGET_LINK, function (element, value) {
+					element.setAttribute("href", value);
+				});
+			}
+
+			/**
+			 * Apply the widget-link-new-tab data attribute to replace the href for those elements
+			 * @param {Widget} widget
+			 * @returns {undefined}
+			 */
+			function _applyLinkNewTab(widget)
+			{
+				_apply(widget, sdx.ATTRIBUTE_WIDGET_LINK_NEW_TAB, function (element, value) {
+					if (value === 'true') {
+						element.setAttribute("target", "_blank");
+					}
+				});
+			}
+
+			/**
+			 * Extend Widget preloading to apply data attributes to widgets
+			 */
+			sdx.Widget.onPreload(function ()
+			{
+				_applyText(this);
+				_applyVisible(this);
+				_applyBackgroundImage(this);
+				_applyLink(this);
+				_applyLinkNewTab(this);
+			});
+
+		})();
+
+	</script>
+
+</widget>

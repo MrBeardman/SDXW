@@ -1,0 +1,128 @@
+<!--
+A dropdown jump-menu: pick an option, navigate to its URL (optionally in a new tab). Options are
+author-typed as comma-separated "Label|URL" pairs and parsed into real <option> elements on load
+- the one thing CSS/data-attributes-lib can't do here, same category as heading's tag swap.
+All option labels are localized (en/de).
+//-->
+<widget>
+
+	<!-- CONFIG -->
+	<script type="application/json" id="widget-config">
+		{
+		"hrid": "dropdown-widget-v1",
+		"display": "Dropdown Widget V1",
+		"description": "A dropdown jump-menu - pick an option, navigate to its URL.",
+		"category": "AI Examples/Basic",
+		"type": "widget",
+		"layoutUnique": false,
+		"icon": "menu-down",
+		"iconColor": "#96C21F",
+		"options": [
+			{ "key": "options-list", "label": { "en": "Options (Label|URL, comma-separated)", "de": "Optionen (Label|URL, kommagetrennt)" }, "type": "text", "default": "Home|/,About|/about,Contact|/contact" },
+			{ "key": "default-option", "label": { "en": "Default option (matches a label above)", "de": "Standardoption (entspricht einem Label oben)" }, "type": "text", "default": "Home" },
+			{ "key": "open-in-new-tab", "label": { "en": "Open in New Tab", "de": "In neuem Tab öffnen" }, "type": "boolean", "default": "false" }
+		]
+		}
+	</script>
+
+	<!-- STYLE -->
+	<style id="widget-styles">
+
+		@scope {
+
+			#widget-body {
+
+				#dropdown {
+					/* inner spacing on the control itself, not the slot around it - the slot's
+					   own Style tab already covers margin/padding/width/alignment (see
+					   architecture.md, "Slot-level styling") */
+					padding: 8px 12px;
+					cursor: pointer;
+				}
+			}
+		}
+
+	</style>
+
+	<!-- TAGS -->
+	<!-- No loading/active/error state machine - synchronous and config-only (see patterns.md) -->
+	<div id="widget-body">
+		<select id="dropdown"></select>
+	</div>
+
+	<!-- SCRIPT -->
+	<script id="widget-script">
+
+		(function () {
+
+			// Uses
+			const sdx = window.sdx;
+
+			// Widget
+			const widget = sdx.Widget.getInstance();
+
+			// Parsing "Label|URL" pairs into real <option> elements, and navigating on change,
+			// are both things CSS/data-attributes-lib genuinely cannot do - the sanctioned JS
+			// exception here, same category as heading-widget-v1's tag swap.
+			widget.onLoad(function () {
+
+				const select = widget.findElement('#dropdown');
+				const defaultLabel = widget.getConfig('default-option').trim();
+				const newTab = widget.getConfig('open-in-new-tab') === 'true';
+
+				const entries = widget.getConfig('options-list')
+					.split(',')
+					.map(function (entry) {
+						const parts = entry.split('|');
+						return {
+							label: (parts[0] || '').trim(),
+							url: (parts[1] || '').trim()
+						};
+					})
+					.filter(function (entry) {
+						return entry.label !== '' && entry.url !== '';
+					});
+
+				entries.forEach(function (entry) {
+
+					const option = document.createElement('option');
+
+					option.value = entry.url;
+					option.textContent = entry.label;
+
+					// No match (or an empty default) leaves nothing explicitly selected here -
+					// the browser's own native behavior (first <option> selected) applies, a
+					// sensible fallback that needs no extra code.
+					if (entry.label === defaultLabel) {
+						option.selected = true;
+					}
+
+					select.appendChild(option);
+				});
+
+				select.addEventListener('change', function () {
+
+					if (!select.value) {
+						return;
+					}
+
+					if (newTab) {
+						// window.open() does NOT get the same implicit noopener protection that
+						// target="_blank" gets on a plain <a> (see button-widget-v1's CHANGELOG)
+						// - that MDN behavior is specific to the HTML attribute on <a>/<area>/
+						// <form>, not this JS API. 'noopener' has to be passed explicitly here.
+						window.open(select.value, '_blank', 'noopener');
+					} else {
+						window.location.href = select.value;
+					}
+				});
+			});
+
+			// Call after all prep to get widget loaded
+			widget.ready();
+
+		})();
+
+	</script>
+
+</widget>

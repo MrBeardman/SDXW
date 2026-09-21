@@ -1,0 +1,646 @@
+<widget>
+
+    <!-- CONFIG -->
+    <script type="application/json" id="widget-config">
+		{
+		"hrid": "performance-today-widget-v1",
+		"display": "Performance Today Widget V1",
+		"description": "Shows what the selected projects produced today, with the weather of the site",
+		"category": "PV",
+		"type": "widget",
+		"layoutUnique": false,
+		"icon": "weather-sunny",
+		"iconColor": "#96C21F",
+		"options": [
+		{ "key": "accentColor", "label": "Accent color", "type": "color", "default": "#96C21F" }
+		]
+		}
+	</script>
+
+    <script type="application/json" id="widget-l10n">
+		{
+		"de" : {
+		"loading": "Wird geladen…",
+		"today": "Heute",
+        "todayFor": "Heute für $project",
+		"producedToday": "Heute produziert",
+		"clear": "Klar",
+		"clouds": "Bewölkt",
+		"rain": "Regen",
+		"drizzle": "Nieselregen",
+		"thunderstorm": "Gewitter",
+		"snow": "Schnee",
+		"atmosphere": "Dunst"
+		},
+		"en" : {
+		"loading": "Loading…",
+		"today": "Today",
+        "todayFor": "Today for $project",
+		"producedToday": "Produced today",
+		"clear": "Clear",
+		"clouds": "Cloudy",
+		"rain": "Rain",
+		"drizzle": "Drizzle",
+		"thunderstorm": "Thunderstorm",
+		"snow": "Snow",
+		"atmosphere": "Haze"
+		}
+		}
+	</script>
+
+    <style id="widget-styles">
+
+        @keyframes today-pulse {
+
+            0%,
+            100% {
+                box-shadow: 0 0 0 0 rgba(255, 255, 255, 0.55);
+            }
+
+            50% {
+                box-shadow: 0 0 0 10px rgba(255, 255, 255, 0);
+            }
+        }
+
+        @keyframes today-float {
+
+            0%,
+            100% {
+                translate: -3px 0;
+            }
+
+            25% {
+                translate: 0 -2px;
+            }
+
+            50% {
+                translate: 3px 0;
+            }
+
+            75% {
+                translate: 0 2px;
+            }
+        }
+
+        @scope {
+
+            #widget-body {
+
+                position: relative;
+
+                #today-card {
+                    position: relative;
+                    overflow: hidden;
+                    padding: 18px 20px;
+                    border-radius: var(--widget-border-radius);
+                    background-size: cover;
+                    background-position: center;
+                    color: #fff;
+                    display: flex;
+                    flex-direction: column;
+                    height: 100%;
+                }
+
+                #today-card > * {
+                    position: relative;
+                    z-index: 1;
+                }
+
+                #today-card > .today-curve,
+                #today-night,
+                #today-card > .today-sun,
+                #today-dot,
+                #today-now {
+                    position: absolute;
+                    z-index: 0;
+                }
+
+                #today-card > .today-curve,
+                #today-night {
+                    inset: 0;
+                }
+
+                #today-card >.today-curve {
+                    width: 100%;
+                    height: 100%;
+                }
+
+                .today-head {
+                    display: flex;
+                    align-items: flex-start;
+                    justify-content: space-between;
+                    gap: 16px;
+                }
+
+                .today-curve path {
+                    fill: none;
+                    stroke: rgba(255, 255, 255, 0.85);
+                    stroke-width: 2;
+                    filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.5));
+                }
+
+                #today-dot {
+                    width: 14px;
+                    height: 14px;
+                    margin: -7px 0 0 -7px;
+                    border-radius: 50%;
+                    background: #fff;
+                    animation: today-pulse 1.8s ease-in-out infinite;
+                }
+
+                .today-label {
+                    text-transform: uppercase;
+                    font-size: 16px;
+                    letter-spacing: .5px;
+                }
+
+                #today-weather {
+                    display: flex;
+                    flex-direction: column;
+                    margin-top: -35px;
+                }
+
+                #today-weather .mdi {
+                    display: inline-block;
+                    align-self: flex-start;
+                    font-size: 120px;
+                    line-height: 1;
+                    animation: today-float 7s ease-in-out infinite;
+                }
+
+                .today-stats {
+                    flex-shrink: 0;
+                    text-align: right;
+                }
+
+                #today-produced {
+                    font-size: 34px;
+                    font-weight: 900;
+                }
+
+                #today-card,
+                [widget-state="loading"],
+                .widget-error {
+                    min-height: 360px;
+                }
+
+                #today-card > .today-curve .today-sun-line {
+                    stroke: rgba(255, 255, 255, 0.45);
+                    stroke-width: 1;
+                    stroke-dasharray: 3 3;
+                    vector-effect: non-scaling-stroke;
+                }
+
+                #today-card > .today-sun {
+                    bottom: 0;
+                    display: flex;
+                    gap: 6px;
+                    align-items: center;
+                    font-size: 14px;
+                    opacity: .9;
+                }
+
+                .today-sun .mdi {
+                    font-size: 25px;
+                }
+
+                #today-now {
+                    transform: translate(-50%, -180%);
+                    font-size: 17px;
+                    padding: 3px 10px;
+                    border-radius: 999px;
+                    background: rgba(0, 0, 0, .45);
+                    white-space: nowrap;
+                }
+
+                #today-night {
+                    pointer-events: none;
+                    mix-blend-mode: multiply;
+                }
+
+                [widget-state="loading"] {
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                }
+
+                [widget-state="updating"] {
+                    position: absolute;
+                    top: 10px;
+                    right: 14px;
+                    z-index: 2;
+                    font-size: 20px;
+                    color: #fff;
+                }
+            }
+        }
+    </style>
+
+    <!-- TAGS -->
+    <div id="widget-body">
+
+        <!-- LOADING -->
+        <div widget-state="loading">Loading…</div>
+
+        <!-- ACTIVE -->
+        <div id="today-card" class="d-none" widget-state="active">
+            <svg class="today-curve" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
+                <line id="today-sunrise-line" class="today-sun-line d-none" y1="0" y2="100" />
+                <line id="today-sunset-line" class="today-sun-line d-none" y1="0" y2="100" />
+                <path id="today-curve-path" vector-effect="non-scaling-stroke" />
+            </svg>
+            <div id="today-night" class="d-none"></div>
+            <div id="today-dot" class="d-none"></div>
+            <!-- sunrise -->
+            <div id="today-sunrise" class="today-sun d-none">
+                <i class="mdi mdi-weather-sunset-up" aria-hidden="true"></i>
+                <span id="today-sunrise-time"></span>
+            </div>
+            <!-- sunset -->
+            <div id="today-sunset" class="today-sun d-none">
+                <span id="today-sunset-time"></span>
+                <i class="mdi mdi-weather-sunset-down" aria-hidden="true"></i>
+            </div>
+            <!-- now -->
+            <div id="today-now" class="d-none"></div>
+            <!-- heading with today's total -->
+            <div class="today-head">
+                <div id="today-label" class="today-label">Today</div>
+                <div class="today-stats">
+                    <div id="today-produced-label" class="today-label">Produced today</div>
+                    <div id="today-produced">—</div>
+                </div>
+            </div>
+            <div id="today-weather" class="d-none">
+                <i id="today-weather-icon" class="mdi" aria-hidden="true"></i>
+                <span id="today-weather-text"></span>
+            </div>
+        </div>
+
+        <!-- UPDATING -->
+        <div class="d-none" widget-state="updating">
+            <span class="mdi mdi-refresh-circle mdi-spin"></span>
+        </div>
+
+        <!-- ERROR -->
+        <div class="d-none widget-error" widget-state="error">
+            <small>An error occured in widget</small>
+            <h2 widget-error-message></h2>
+        </div>
+    </div>
+
+    <!-- SCRIPT -->
+    <script id="widget-script">
+
+        (function () {
+
+            // Uses
+            const sdx = window.sdx;
+            const api = sdx.api;
+            const number = sdx.number;
+            const pvInvestor = sdx.pvInvestor;
+            const pvPerformance = sdx.pvPerformance;
+            const l10n = sdx.l10n;
+
+            // Globals
+            const UPDATE_INTERVAL_MS = number.toMS(15, number.TIME_MIN);
+            const HOURS_PER_DAY = 24;
+            const CURVE_HEADROOM = 0.82;
+            const CURVE_BOTTOM = 96;
+            const CURVE_HEIGHT = 70;
+            const WEATHER_SEPARATOR = ' \u00B7 ';
+            // the sunrise equation, see https://en.wikipedia.org/wiki/Sunrise_equation
+            const JULIAN_EPOCH = 2451545;
+            const JULIAN_UNIX_OFFSET = 2440587.5;
+            const MS_PER_DAY = 86400000;
+            const DEGREES_PER_TURN = 360;
+            const SUN_ANGLE = -0.833;
+            const EARTH_TILT = 23.4397;
+            const SUN_LABEL_GAP_PX = 10;
+            const TIME_FORMAT = {hour: '2-digit', minute: '2-digit'};
+
+            // Widget
+            const widget = sdx.Widget.getInstance();
+            // the selection callback outlives a single load, so it reads the latest investor from here
+			let investor = null;
+
+            /**
+             * Places an hour of the day on the horizontal axis of the curve
+             * @param {Number} hour
+             * @returns {String} The position in percent
+             */
+            function _curveX(hour) 
+            {
+                return (hour / HOURS_PER_DAY * 100).toFixed(2);
+            }
+
+            /**
+             * Places a produced amount on the vertical axis of the curve
+             * @param {Number} value
+             * @param {Number} scale The peak with headroom, so the curve keeps clear of the labels
+             * @returns {String} The position in percent
+             */
+            function _curveY(value, scale) 
+            {
+                return (CURVE_BOTTOM - (value / scale) * CURVE_HEIGHT).toFixed(2);
+            }
+
+            /**
+             * Builds the svg path of the curve, where M moves to the first point and every L draws a straight line to the next one
+             * @param {Array} series The merged curve of the selected projects
+             * @param {Number} scale The peak with headroom
+             * @returns {String} The path data
+             */
+            function _buildCurvePath(series, scale) 
+            {
+                const points = series.map(function (point) {
+
+                    return _curveX(point.hour) + ',' + _curveY(point.power, scale);
+                });
+
+                return 'M' + points.join(' L');
+            }
+
+            /**
+             * @param {Number} degrees
+             * @returns {Number} The angle in radians, which is what Math expects
+             */
+            function _toRadians(degrees)
+            {
+                return degrees * Math.PI / 180;
+            }
+
+            /**
+             * @param {Number} julianDate
+             * @returns {Date} The same moment as a date
+             */
+            function _fromJulian(julianDate)
+            {
+                return new Date((julianDate - JULIAN_UNIX_OFFSET) * MS_PER_DAY);
+            }
+
+            /**
+             * Works out when the sun rises and sets at a site, so the curve can show where
+             * daylight begins and ends. The numbers below are the sunrise equation itself
+             * See https://en.wikipedia.org/wiki/Sunrise_equation
+             * @param {Number} latitude
+             * @param {Number} longitude
+             * @param {Date} day The day to work out
+             * @returns {Object|null} The sunrise and sunset, or null where the sun does not set
+             */
+            function _sunTimes(latitude, longitude, day)
+            {
+                const julianDate = day.getTime() / MS_PER_DAY + JULIAN_UNIX_OFFSET;
+                const dayNumber = Math.ceil(julianDate - JULIAN_EPOCH + 0.0008);
+                const meanSolarTime = dayNumber - longitude / DEGREES_PER_TURN;
+                const meanAnomaly = (357.5291 + 0.98560028 * meanSolarTime) % DEGREES_PER_TURN;
+
+                const center = 1.9148 * Math.sin(_toRadians(meanAnomaly))
+                    + 0.02 * Math.sin(_toRadians(2 * meanAnomaly))
+                    + 0.0003 * Math.sin(_toRadians(3 * meanAnomaly));
+
+                const eclipticLongitude = (meanAnomaly + center + 180 + 102.9372) % DEGREES_PER_TURN;
+
+                const transit = JULIAN_EPOCH + meanSolarTime
+                    + 0.0053 * Math.sin(_toRadians(meanAnomaly))
+                    - 0.0069 * Math.sin(_toRadians(2 * eclipticLongitude));
+
+                const declination = Math.asin(Math.sin(_toRadians(eclipticLongitude)) * Math.sin(_toRadians(EARTH_TILT)));
+
+                const hourAngleCosine = (Math.sin(_toRadians(SUN_ANGLE)) - Math.sin(_toRadians(latitude)) * Math.sin(declination))
+                    / (Math.cos(_toRadians(latitude)) * Math.cos(declination));
+
+                // above the polar circles the sun may not rise or set at all
+                if (hourAngleCosine < -1 || hourAngleCosine > 1) {
+                    return null;
+                }
+
+                const hourAngle = Math.acos(hourAngleCosine) * 180 / Math.PI;
+
+                return {
+                    sunrise: _fromJulian(transit - hourAngle / DEGREES_PER_TURN),
+                    sunset: _fromJulian(transit + hourAngle / DEGREES_PER_TURN)
+                };
+            }
+
+            /**
+             * Marks sunrise and sunset on the day
+             * Hides both when the site has no coordinates, since they come from the weather attributes
+             * @param {Object|null} project The single selected project, or null
+             * @returns {undefined}
+             */
+            function _renderSunTimes(project)
+            {
+                const marks = ['#today-sunrise', '#today-sunset', '#today-sunrise-line', '#today-sunset-line', '#today-night'];
+                const times = project === null ? null : _sunTimes(project.latitude, project.longitude, new Date());
+
+                if (times === null || isNaN(times.sunrise.getTime())) {
+
+                    for (const mark of marks) {
+                        widget.findElement(mark).classList.add('d-none');
+                    }
+
+                    return;
+                }
+
+                const locale = l10n.getCurrentLocale();
+                const positions = {};
+
+                for (const key of ['sunrise', 'sunset']) {
+
+                    const hour = times[key].getHours() + times[key].getMinutes() / 60;
+                    const position = _curveX(hour);
+                    const label = widget.findElement('#today-' + key);
+                    const line = widget.findElement('#today-' + key + '-line');
+
+                    positions[key] = position;
+
+                    line.setAttribute('x1', position);
+                    line.setAttribute('x2', position);
+                    line.classList.remove('d-none');
+
+                    widget.findElement('#today-' + key + '-time').textContent = times[key].toLocaleTimeString(locale, TIME_FORMAT);
+
+                    // each label leans on its own line from the inside, so the text never crosses it
+                    if (key === 'sunrise') {
+                        label.style.left = 'calc(' + position + '% + ' + SUN_LABEL_GAP_PX + 'px)';
+                        label.style.right = 'auto';
+                    } else {
+                        label.style.right = 'calc(' + (100 - position) + '% + ' + SUN_LABEL_GAP_PX + 'px)';
+                        label.style.left = 'auto';
+                    }
+
+                    label.classList.remove('d-none');
+                }
+
+                const night = widget.findElement('#today-night');
+
+                night.style.background = 'linear-gradient(to right,'
+                    + ' #d5dade 0%,'
+                    + ' #d5dade ' + positions.sunrise + '%,'
+                    + ' #ffffff ' + positions.sunrise + '%,'
+                    + ' #ffffff ' + positions.sunset + '%,'
+                    + ' #d5dade ' + positions.sunset + '%,'
+                    + ' #d5dade 100%)';
+
+                night.classList.remove('d-none');
+            }
+
+            /**
+             * Draws the day curve into the background of the card and puts the dot on its end
+             * @param {Array} series The merged curve of the selected projects
+             * @returns {undefined}
+             */
+            function _renderCurve(series) 
+            {
+                const path = widget.findElement('#today-curve-path');
+                const dot = widget.findElement('#today-dot');
+
+                if (series.length < 2) {
+                    path.removeAttribute('d');
+                    dot.classList.add('d-none');
+                    widget.findElement('#today-now').classList.add('d-none');
+                    return;
+                }
+
+                let peak = 0;
+
+                for (const point of series) {
+                    if (point.power > peak) {
+                        peak = point.power;
+                    }
+                }
+
+                const scale = peak > 0 ? peak / CURVE_HEADROOM : 1;
+
+                path.setAttribute('d', _buildCurvePath(series, scale));
+
+                const last = series[series.length - 1];
+
+                dot.style.left = _curveX(last.hour) + '%';
+                dot.style.top = _curveY(last.power, scale) + '%';
+                dot.classList.remove('d-none');
+
+                const now = widget.findElement('#today-now');
+
+                now.textContent = new Date().toLocaleTimeString(l10n.getCurrentLocale(), TIME_FORMAT);
+                now.style.left = _curveX(last.hour) + '%';
+                now.style.top = _curveY(last.power, scale) + '%';
+                now.classList.remove('d-none');
+            }
+
+            /**
+             * Shows the weather of the site, or hides the line when there is none to show
+             * @param {Object|null} weather
+             * @returns {undefined}
+             */
+            function _renderWeather(weather) 
+            {
+                const weatherLine = widget.findElement('#today-weather');
+
+                if (weather === null) {
+                    weatherLine.classList.add('d-none');
+                    return;
+                }
+
+                const parts = [];
+
+                if (weather.temp) {
+                    parts.push(number.formatTemperature(weather.temp));
+                }
+
+                if (weather.weather) {
+                    parts.push(widget.resolveL10N(weather.weather, {}));
+                }
+
+                if (weather.wind) {
+                    parts.push(weather.wind);
+                }
+
+                widget.findElement('#today-weather-icon').className = 'mdi ' + pvInvestor.weatherIcon(weather.weather);
+                widget.findElement('#today-weather-text').textContent = parts.join(WEATHER_SEPARATOR);
+
+                weatherLine.classList.remove('d-none');
+            }
+
+            /**
+             * Names the project in the heading, but only when the chooser points at a single one
+             * @param {Array} projects The selected projects
+             * @returns {undefined}
+             */
+            function _renderTitle(projects)
+			{
+				const project = pvPerformance.namedProject(projects);
+
+				widget.findElement('#today-label').textContent = project === null
+					? widget.resolveL10N('today', {})
+					: widget.resolveL10N('todayFor', {project: project.title});
+			}
+
+            /**
+             * Renders the whole card from the aggregated projects
+             * @param {Object} today
+             * @param {Object} weatherBackgrounds
+             * @returns {undefined}
+             */
+            function _renderCard(today, weatherBackgrounds) 
+            {
+                const card = widget.findElement('#today-card');
+                const weather = today.weather;
+
+                api.setBackgroundImage(card, pvInvestor.weatherBackground(weatherBackgrounds, weather && weather.weather));
+
+                widget.findElement('#today-produced').textContent = number.formatNumber(today.produced, number.UNIT_MWH);
+
+                _renderWeather(weather);
+                _renderCurve(today.series);
+            }
+
+            /**
+			 * Renders the heading and the card from whatever the chooser currently points at
+			 * @returns {undefined}
+			 */
+			function _render()
+			{
+				const projects = pvPerformance.selectedProjects(investor);
+
+				_renderTitle(projects);
+                _renderSunTimes(pvPerformance.namedProject(projects));
+				_renderCard(pvPerformance.aggregateToday(projects), investor.weatherBackgrounds);
+			}
+
+            widget.onLoad(async function () 
+            {
+                widget.findElement('[widget-state="loading"]').textContent = widget.resolveL10N('loading', {});
+                widget.findElement('#today-produced-label').textContent = widget.resolveL10N('producedToday', {});
+
+                investor = await pvInvestor.loadInvestorCached();
+
+				if (api.isDeveloperMode()) {
+					console.log('investor', investor);
+				}
+
+				_render();
+
+				pvPerformance.onSelectionChange(_render);
+            });
+
+            widget.setAutoUpdate(UPDATE_INTERVAL_MS);
+            widget.onUpdate(async function () 
+            {
+				investor = await pvInvestor.loadInvestorCached();
+
+				if (api.isDeveloperMode()) {
+					console.log('investor', investor);
+				}
+
+				_render();
+			});
+
+            // Call after all prep to load the widget
+            widget.ready();
+
+        })();
+    </script>
+
+</widget>

@@ -1,0 +1,165 @@
+<widget>
+
+	<!-- CONFIG -->
+	<script type="application/json" id="widget-config">
+		{
+		"hrid": "number-lib-v1",
+		"display": "Number Library V1",
+		"description": "Numbers, units and formatting for sdx widgets",
+		"category": "SDX",
+		"layoutUnique": true,
+		"type": "library",
+		"loadIndex": 10,
+		"icon": "numeric",
+		"iconColor": "#B45608"
+		}
+	</script>
+
+	<!-- SCRIPT -->
+	<script id="widget-script">
+
+		(function () {
+
+			// Uses
+			const sdx = window.sdx;
+
+			// Package
+			const number = sdx.number = {};
+
+            // Globals 
+            number.SIGN_CELSIUS = '\u00B0';
+			number.SIGN_EURO = '\u20AC';
+			number.UNIT_MWH = 'MWh';
+
+			// the time units toMS understands
+			number.TIME_MS = 'ms';
+			number.TIME_SEC = 'sec';
+			number.TIME_MIN = 'min';
+
+			// the units formatFileSize steps through
+			const BYTE_UNITS = ['B', 'KB', 'MB', 'GB'];
+
+			const MS_PER_UNIT = {
+				ms: 1,
+				sec: 1000,
+				min: 60 * 1000
+			};
+
+            /**
+			 * Divides two values, defaulting to zero instead of failing on a missing
+			 * value or a division by zero
+			 * @param {*} dividend The value to divide
+			 * @param {*} divisor The value to divide by
+			 * @returns {Number} The result, or zero when it cannot be calculated
+			 */
+			number.safeDivide = function (dividend, divisor)
+			{
+				var parsedDivisor = Number(divisor) || 0;
+
+				if (parsedDivisor === 0) {
+					return 0;
+				}
+
+				return (Number(dividend) || 0) / parsedDivisor;
+			};
+
+			/**
+			 * Converts a time span into ms, so the unit is written down instead of multiplied away
+			 * @param {Number} value The amount of the given unit
+			 * @param {String} unit One of the TIME_ constants
+			 * @returns {Number} The span in ms
+			 */
+			number.toMS = function (value, unit)
+			{
+				const factor = MS_PER_UNIT[unit];
+
+				return value * factor;
+			};
+
+			/**
+			 * Formats a number for display, optionally followed by a unit
+			 * @param {*} value The value to format
+			 * @param {String} unit The unit to append, or nothing
+			 * @returns {String} The formatted number
+			 */
+			number.formatNumber = function (value, unit)
+			{
+				var parsed = Number(value) || 0;
+				// @todo currently using 'de-DE' as hardcoded locale for formatting -> should use proper user locale?
+				var formatted = parsed.toLocaleString('de-DE');
+
+				return unit ? formatted + ' ' + unit : formatted;
+			};
+
+			/**
+			 * Formats a number as euros, hiding the cents when there are none
+			 * @param {*} value The value to format
+			 * @returns {String} The formatted amount
+			 */
+			number.formatCurrency = function (value)
+			{
+				var parsed = Number(value) || 0;
+				var digits = Math.round(parsed * 100) % 100 === 0 ? 0 : 2;
+
+				// @todo currently using 'de-DE' as hardcoded locale for formatting -> should use proper user locale?
+				var formatted = parsed.toLocaleString('de-DE', {
+					minimumFractionDigits: digits,
+					maximumFractionDigits: digits
+				});
+
+				return digits ? formatted + ' ' + number.SIGN_EURO : formatted + ',- ' + number.SIGN_EURO;
+			};
+
+			/**
+			 * Formats a temperature as whole degrees, keeping values that already carry a unit.
+			 * @param {*} value The value to format
+			 * @returns {String} The formatted temperature
+			 */
+			number.formatTemperature = function (value)
+			{
+				if (value === null || value === undefined || value === '') {
+					return '';
+				}
+
+				var text = String(value);
+
+				if (text.indexOf(number.SIGN_CELSIUS) > -1) {
+					return text;
+				}
+
+				var parsed = Number(value);
+
+				return isNaN(parsed) ? text : Math.round(parsed) + number.SIGN_CELSIUS;
+			};
+
+			/**
+			 * Formats a byte count as the nearest B/KB/MB/GB, reusing formatNumber so it
+			 * reads with the same de-DE formatting as every other number in this library.
+			 * @param {*} sizeBytes The size in bytes
+			 * @returns {String} The formatted size, or '' when there is nothing to show
+			 */
+			number.formatFileSize = function (sizeBytes)
+			{
+				var value = Number(sizeBytes) || 0;
+
+				if (!value) {
+					return '';
+				}
+
+				var unitIndex = 0;
+
+				while (value >= 1024 && unitIndex < BYTE_UNITS.length - 1) {
+					value /= 1024;
+					unitIndex++;
+				}
+
+				var rounded = unitIndex === 0 ? Math.round(value) : Math.round(value * 10) / 10;
+
+				return number.formatNumber(rounded, BYTE_UNITS[unitIndex]);
+			};
+
+		})();
+
+	</script>
+
+</widget>

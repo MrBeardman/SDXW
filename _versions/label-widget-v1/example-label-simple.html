@@ -1,0 +1,101 @@
+<!--
+This widget shows an example of a simple label which can open a url (optionally in a new target).
+The options are very reduced, but their labels are localized.
+It uses data-attributes-lib to wire options into the label element.
+//-->
+<widget>
+
+    <!-- CONFIG -->
+	<!-- All config options are localized -->
+    <script type="application/json" id="widget-config">
+        {
+			"hrid" : "example-label-simple",
+			"display" : "Simple Label Example",
+			"description" : "This example widget shows the canonical way of implementing a simple label widget with basic options.",
+			"category" : "Examples/Basic",
+			"type": "widget",
+			"layoutUnique" : false,
+			"icon" : "hexagon-outline",
+			"iconColor" : "#008EEC",
+			"options": [
+			{
+				"key": "text-align",
+				"label": { "en": "Alignment", "de": "Ausrichtung" },
+				"type": "select",
+				"default": "flex-start",
+				"options": [
+					{ "label": { "en": "Left", "de": "Links" }, "value": "flex-start" },
+					{ "label": { "en": "Center", "de": "Mittig" }, "value": "center" },
+					{ "label": { "en": "Right", "de": "Rechts" }, "value": "flex-end" }
+				]
+			},
+			{ "key": "text-color", "label": { "en": "Text Color", "de": "Text Farbe" }, "type": "color", "default": "#000" },
+			{ "key": "font-size", "label": { "en": "Font Size", "de": "Font Größe" }, "type": "text", "default": "12" },
+			{ "key": "display", "label": { "en": "Display", "de": "Anzeige" }, "type": "text", "default": "Display" },
+			{ "key": "font-bold", "label": { "en": "Bold", "de": "Fett" }, "type": "boolean", "default": false },
+			{ "key": "font-italic", "label": { "en": "Italic", "de": "Kursiv" }, "type": "boolean", "default": false }
+			]
+        }
+    </script>
+
+	<!-- STYLE -->
+	<style id="widget-styles">
+
+		@scope {
+
+			#widget-body {
+
+				/* border-radius is a bare number. The unit is appended via calc(). */
+				--label-font-size: calc(var(--widget-font-size) * 1px);
+
+				/* Uses flex to allow for different readings directions (ltr, rtl) properly */
+				display: flex;
+				justify-content: var(--widget-text-align);
+
+				#label {
+
+					text-decoration: none;
+					display: inline-block;
+					font-size: var(--label-font-size);
+					color: var(--widget-text-color);
+
+					/* Sets the css bold conditionally using @container CSS */
+					@container style(--widget-font-bold: true) {
+                        font-weight: bold;
+                    }
+
+					/* Sets the css italic conditionally using @container CSS */
+					@container style(--widget-font-italic: true) {
+                        font-style: italic;
+                    }
+				}
+			}
+		}
+
+	</style>
+
+    <!-- TAGS -->
+	<!-- No loading/active/error state machine necessary - this widget is synchronous and config-only -->
+    <div id="widget-body">
+		<p id="label" widget-text="display"></p>
+    </div>
+
+    <!-- SCRIPT -->
+    <script id="widget-script">
+
+		(function () {
+
+			// Uses
+			const sdx = window.sdx;
+
+			// Widget
+			const widget = sdx.Widget.getInstance();
+
+			// Activate widget to map the widget data attributes (provided in data-attributes-lib)
+			widget.ready();
+
+		})();
+
+    </script>
+
+</widget>

@@ -1,0 +1,119 @@
+<widget>
+
+    <!-- CONFIG -->
+    <script type="application/json" id="widget-config">
+        {
+		"hrid" : "welcome-widget-v1",
+		"display" : "Welcome Widget V1",
+		"description" : "Displays a personalized welcome for the user. Providing 4 time categories with differnt greeting and background image.",
+		"category" : "General",
+		"type": "widget",
+		"layoutUnique" : true,
+		"icon" : "coffee",
+		"iconColor" : "#F7C900",
+		"options": [
+		{ "key": "title-color", "label": "Title Color", "type": "color", "default": "#213B33" },
+		{ "key": "background-image-morning", "label": "Background Image Morning", "type": "text", "default": "" },
+		{ "key": "background-image-noon", "label": "Background Image Noon", "type": "text", "default": "" },
+		{ "key": "background-image-afternoon", "label": "Background Image Afternoon", "type": "text", "default": "" },
+		{ "key": "background-image-evening", "label": "Background Image Evening", "type": "text", "default": "" },
+		{ "key": "background-image-night", "label": "Background Image Night", "type": "text", "default": "" }
+		]
+        }
+    </script>
+
+    <!-- L10N -->
+    <script type="application/json" id="widget-l10n">
+        {
+		"de" : {
+		"morning": "Guten Morgen $display",
+		"noon": "Guten Tag $display",
+		"afternoon": "Guten Tag $display",
+		"evening": "Guten Abend $display",
+		"night": "Gute Nacht $display"
+		},
+		"en" : {
+		"morning": "Good morning $display",
+		"noon": "Good day $display",
+		"afternoon": "Good day <b>$display</b>",
+		"evening": "Good evening $display",
+		"night": "Good night $display"
+		}
+        }
+    </script>
+
+	<!-- STYLE -->
+	<style id="widget-styles">
+
+		@scope {
+
+			#widget-body {
+
+				border-radius: var(--widget-border-radius);
+				padding: 40px;
+				background-size: cover;
+				background-position: center;
+				font-size: 30px;
+
+				#title {
+					font-weight: bolder;
+					color: var(--widget-title-color);
+				}
+			}
+		}
+
+	</style>
+
+    <!-- TAGS -->
+    <div id="widget-body">
+        <h1 id="title">-</h1>
+    </div>
+
+    <!-- SCRIPT -->
+    <script id="widget-script">
+
+		(function () {
+
+			// Uses
+			const sdx = window.sdx;
+			const api = sdx.api;
+			const date = sdx.date;
+
+			// Globals
+			const CHART_UPDATE = 60000;
+
+			function _update(widget)
+			{
+				const user = api.getSessionUser();
+				const dayTimeCategory = date.getDayTimeCategory();
+
+				// Set time category specific background
+				api.setBackgroundImage(
+					widget.findElement('#widget-body'),
+					widget.getConfig('background-image-' + dayTimeCategory)
+					);
+
+				// Set title of welcome l10n
+				widget.findElement('#title').innerHTML = widget.resolveL10N(dayTimeCategory, user);
+			}
+
+			// Widget
+			const widget = sdx.Widget.getInstance();
+
+			widget.onLoad(async function () {
+				_update(this);
+			});
+
+			// Update chart every CHART_UPDATE ms
+			widget.setAutoUpdate(CHART_UPDATE);
+			widget.onUpdate(async function () {
+				_update(this);
+			});
+
+			widget.ready();
+
+		})();
+
+    </script>
+
+</widget>

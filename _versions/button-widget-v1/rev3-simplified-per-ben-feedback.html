@@ -1,0 +1,119 @@
+<widget>
+
+	<!-- CONFIG -->
+	<script type="application/json" id="widget-config">
+		{
+		"hrid": "button-widget-v1",
+		"display": "Button Widget V1",
+		"description": "A simple, configurable button - alignment, colors, border radius, link.",
+		"category": "General",
+		"type": "widget",
+		"layoutUnique": false,
+		"icon": "gesture-tap-button",
+		"iconColor": "#96C21F",
+		"options": [
+			{
+				"key": "text-align",
+				"label": { "en": "Alignment", "de": "Ausrichtung" },
+				"type": "select",
+				"default": "left",
+				"options": [
+					{ "label": { "en": "Left", "de": "Links" }, "value": "left" },
+					{ "label": { "en": "Center", "de": "Mittig" }, "value": "center" },
+					{ "label": { "en": "Right", "de": "Rechts" }, "value": "right" }
+				]
+			},
+			{ "key": "text-color", "label": "Text Color", "type": "color", "default": "#FFFFFF" },
+			{ "key": "text-color-hover", "label": "Text Color Hover", "type": "color", "default": "#FFFFFF" },
+			{ "key": "background-color", "label": "Background Color", "type": "color", "default": "#96C21F" },
+			{ "key": "background-color-hover", "label": "Background Color Hover", "type": "color", "default": "#7FA519" },
+			{ "key": "button-border-radius", "label": "Border Radius (px)", "type": "text", "default": "8" },
+			{ "key": "link-new-tab", "label": "Open in New Tab", "type": "boolean", "default": false },
+			{ "key": "link", "label": "Link", "type": "text", "default": "#" },
+			{ "key": "display", "label": "Button Text", "type": "text", "default": "Click here" }
+		]
+		}
+	</script>
+
+	<!-- STYLE -->
+	<style id="widget-styles">
+
+		@scope {
+
+			#widget-body {
+
+				/* text-align + display: inline-block on the button IS the alignment mechanism -
+				   "left"/"center"/"right" are already valid text-align keywords, so the select
+				   option's value flows straight into CSS with no JS mapping needed at all (no
+				   flex container, no per-alignment modifier class) */
+				text-align: var(--widget-text-align);
+
+				/* border-radius is a bare number (see patterns.md's "type: text must be a
+				   single unbroken CSS token" gotcha) - unit appended via calc(), not stored in
+				   the option value itself */
+				--button-border-radius: calc(var(--widget-button-border-radius) * 1px);
+
+				#button {
+					display: inline-block;
+					padding: 10px 20px;
+					text-decoration: none;
+					border-radius: var(--button-border-radius);
+					color: var(--widget-text-color);
+					background-color: var(--widget-background-color);
+				}
+
+				#button:hover {
+					color: var(--widget-text-color-hover);
+					background-color: var(--widget-background-color-hover);
+				}
+			}
+		}
+
+	</style>
+
+	<!-- TAGS -->
+	<!-- No loading/active/error state machine - this widget is synchronous and config-only,
+	     nothing to wait for and nothing that can fail (see patterns.md) -->
+	<div id="widget-body">
+		<a id="button" href="#" widget-text="display"></a>
+	</div>
+
+	<!-- SCRIPT -->
+	<script id="widget-script">
+
+		(function () {
+
+			// Uses
+			const sdx = window.sdx;
+
+			// Widget
+			const widget = sdx.Widget.getInstance();
+
+			// widget-text (data-attributes-lib) handles the button's own label declaratively -
+			// see the TAGS block. link/new-tab are wired here instead of via widget-link /
+			// widget-link-new-tab data attributes, because those two attributes are NOT
+			// implemented anywhere in the current data-attributes-lib-v1.html (confirmed by
+			// reading its source directly - Widget.onPreload there only wires widget-text,
+			// widget-visible, widget-background-image). A widget-link/widget-link-new-tab pair
+			// would be a good, real candidate for that library later (see SKILL.md rule 8 and
+			// patterns.md's library-candidate convention) - until then this needs real JS.
+			widget.onLoad(function () {
+
+				const button = widget.findElement('#button');
+
+				button.href = widget.getConfig('link');
+
+				if (widget.getConfig('link-new-tab') === 'true') {
+					button.target = '_blank';
+					button.rel = 'noopener';
+				}
+			});
+
+			// Call after all prep to get widget loaded
+			widget.ready();
+
+		})();
+
+	</script>
+
+</widget>

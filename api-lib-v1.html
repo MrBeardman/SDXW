@@ -1,0 +1,217 @@
+<widget>
+
+	<!-- CONFIG -->
+	<script type="application/json" id="widget-config">
+        {
+		"hrid": "api-lib-v1",
+		"display": "API Library V1",
+		"description": "This is the api abstraction for sdx widgets",
+		"category": "SDX",
+		"layoutUnique": true,
+		"type": "library",
+		"loadIndex": 10,
+		"icon": "api",
+		"iconColor": "#00DFA6"
+        }
+	</script>
+
+	<!-- SCRIPT -->
+	<script id="widget-script">
+
+		(function () {
+
+			// Uses
+			const sdx = window.sdx;
+
+			// Package
+			const api = sdx.api = {};
+
+			/// Globals
+			const SESSION_DEVELOPER_MODE = 'developerMode';
+
+			/**
+			 * Returns the mapped DL API
+			 * @returns {DLApi} Returns the DL Api
+			 */
+			api.getApi = function ()
+			{
+				return window.parent && window.parent.Application && window.parent.Application.api;
+			};
+
+			const dlApi = api.getApi();
+
+			/**
+			 * Returns the current session user.
+			 * Be aware that the session might time out and impersonation might change that user ref any time
+			 * @returns {User} returns the current session user
+			 */
+			api.getSessionUser = function ()
+			{
+				return window.parent && window.parent.Application && window.parent.Application.auth.user;
+			};
+
+			/**
+			 * Returns the currently selected item
+			 * @returns {Boolean}
+			 */
+			api.getCurrentItemId = function ()
+			{
+				return window.parent && window.parent.mainWidgetItemId;
+			};
+
+			/**
+			 * Returns the currently selected item
+			 * @param {String::UUID} id the content id
+			 * @returns {Content}
+			 */
+			api.getContentById = async function (id)
+			{
+				return dlApi.contents.get(id);
+			};
+
+			/**
+			 * Returns the currently selected item
+			 * @param {String::UUID} id the content id
+			 * @param {Boolean} preview download as preview - defaults to true
+			 * @param {Boolean} cacheBust download that file without caching - defaults to false
+			 * @returns {File}
+			 */
+			api.streamContentById = async function (id, preview, cacheBust)
+			{
+				preview = preview || true;
+				cacheBust = cacheBust || false;
+				const url = dlApi.contents.streamAsGetURL(id, preview, undefined, cacheBust);
+
+				return fetch(url, {credentials: 'include', cache: 'no-store'});
+			};
+
+			/**
+			 * Returns whether the current session user is a super admin
+			 * @returns {Boolean} True for a super admin
+			 */
+			api.isSuperAdmin = function ()
+			{
+				const auth = window.parent && window.parent.Application && window.parent.Application.auth;
+
+				return !!(auth && auth.isSuperAdmin);
+			};
+
+			/**
+			 * Reads the uuid of the space the user is currently in.
+			 * @returns {String|null} The space uuid, or null outside of a space
+			 */
+			api.getSpaceUuid = function ()
+			{
+				try {
+					// @todo currently relies on the url path -> sholuld be replaced by a long term way to identify the current context of a widget
+					var path = (window.parent && window.parent.location && window.parent.location.pathname) || '';
+					var match = path.match(/\/spaces\/([0-9a-f-]{36})/i);
+
+					return match && match[1];
+				} catch (error) {
+					return null;
+				}
+			};
+
+			/**
+			 * Reads whether the server runs in developer mode, which switches caching off
+			 * @returns {Boolean} True when caching should be skipped
+			 */
+			api.isDeveloperMode = function ()
+			{
+				return window.parent.sessionStorage.getItem(SESSION_DEVELOPER_MODE) === 'true';
+			};
+
+			/**
+			 * Reduces contents to one entry per file, keeping the most recently created version.
+			 * @param {Array} contents The contents as returned by a query
+			 * @returns {Array} The contents without outdated versions
+			 */
+			api.keepLatestVersions = function (contents)
+			{
+				var byKey = {};
+
+				(contents || []).forEach(function (content) {
+
+					var key = [content.parentId, content.name].join('|');
+					var current = byKey[key];
+
+					if (!current || (Number(content.created) || 0) > (Number(current.created) || 0)) {
+						byKey[key] = content;
+					}
+				});
+
+				return Object.keys(byKey).map(function (key) {
+					return byKey[key];
+				});
+			};
+
+			/**
+			 * Runs a content query and returns only the latest version of each file.
+			 * @param {Object} query The query to run
+			 * @returns {Promise} The matching contents
+			 */
+			api.findLatest = async function (query)
+			{
+				return dlApi.contents.find(query).then(function (response) {
+					return api.keepLatestVersions((response && response.result) || []);
+				});
+			};
+
+			/**
+			 * Runs a content query and returns only the latest version of each file that is of the logical type.
+			 * @param {Object} logicalType logical type
+			 * @param {Object} limit max results - defaults to 100
+			 * @param {Object} hidden display hidden files - default to false
+			 * @returns {Promise} The matching contents
+			 */
+			api.findByLogicalType = async function (logicalType, limit, hidden)
+			{
+				const query = {
+					contentLogicalType: logicalType,
+					contentHidden: hidden || false,
+					limit: limit || 100
+				};
+
+				return dlApi.contents.find(query).then(function (response) {
+					return api.keepLatestVersions((response && response.result) || []);
+				});
+			};
+
+
+			/**
+			 * Runs a content query and returns only the latest version of each file matching the name with a sql like query (wildcards etc.).
+			 * For details see https://www.postgresql.org/docs/current/functions-matching.html#FUNCTIONS-LIKE
+			 * @param {Object} nameLike does a like search of the name
+			 * @param {Object} limit max results - defaults to 100
+			 * @param {Object} hidden display hidden files - default to false
+			 * @returns {Promise} The matching contents
+			 */
+			api.findByName = async function (nameLike, limit, hidden)
+			{
+				const query = {
+					contentName: nameLike,
+					contentHidden: hidden || false,
+					limit: limit || 100
+				};
+
+				return dlApi.contents.find(query).then(function (response) {
+					return api.keepLatestVersions((response && response.result) || []);
+				});
+			};
+
+			/**
+			 * Set the background image of a given element
+			 * @param {Element} element
+			 * @param {String::UUID} imageId
+			 * @returns {undefined}
+			 */
+			api.setBackgroundImage = function (element, imageId)
+			{
+				element.style.backgroundImage = 'url(' + dlApi.contents.streamAsGetURL(imageId, true) + ')';
+			};
+
+		})();
+
+	</script>
+</widget>

@@ -1,0 +1,65 @@
+<widget>
+
+    <!-- CONFIG -->
+    <script type="application/json" id="widget-config">
+        {
+		"hrid" : "data-attributes-test-widget-v1",
+		"display" : "Data Attributes Test Widget V1",
+		"description" : "...",
+		"category" : "Testing",
+		"type": "widget",
+		"layoutUnique" : false,
+		"icon" : "cog",
+		"iconColor" : "#123456",
+		"options": [
+		{ "key": "title-color", "label": "Title Color", "type": "color", "default": "#213B33" },
+		{ "key": "title", "label": "Title", "type": "text", "default": "-" },
+		{ "key": "description-color", "label": "Description Color", "type": "color", "default": "#213B33" },
+		{ "key": "description", "label": "Description", "type": "text", "default": "-" },
+		{ "key": "description-visible", "label": "Description Visible", "type": "boolean", "default": true }
+		]
+        }
+    </script>
+
+    <!-- STYLE -->
+    <style scoped id="widget-styles">
+
+        #widget-body {
+
+			#title {
+				font-weight: bolder;
+				color: var(--widget-title-color);
+			}
+
+			#description {
+				color: var(--widget-description-color);
+			}
+		}
+
+    </style>
+
+    <!-- TAGS -->
+    <div class="mt-4 ml-2" id="widget-body">
+        <h1 id="title" widget-text="title">-</h1>
+        <p id="description" widget-text="description" widget-visible="description-visible">-</p>
+    </div>
+
+    <!-- SCRIPT -->
+    <script id="widget-script">
+
+		(function () {
+
+			// Uses
+			const sdx = window.sdx;
+
+			// Retrieve the widget instance from the own widget lib
+			const widget = sdx.Widget.getInstance();
+
+			// Call after all prep to get widget loaded
+			widget.ready();
+
+		})();
+
+    </script>
+
+</widget>

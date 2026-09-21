@@ -1,0 +1,100 @@
+<!--
+A simple text label: text, font size, bold/italic toggles, color and alignment.
+Every option is wired declaratively (data-attributes-lib + CSS) - the script is widget.ready() only.
+All option labels are localized (en/de).
+//-->
+<widget>
+
+	<!-- CONFIG -->
+	<script type="application/json" id="widget-config">
+		{
+		"hrid": "label-widget-v1",
+		"display": "Label Widget V1",
+		"description": "A simple text label - text, font size, bold, italic, color, alignment.",
+		"category": "AI Examples/Basic",
+		"type": "widget",
+		"layoutUnique": false,
+		"icon": "format-text",
+		"iconColor": "#96C21F",
+		"options": [
+			{ "key": "display", "label": { "en": "Text", "de": "Text" }, "type": "text", "default": "Label" },
+			{ "key": "font-size", "label": { "en": "Font Size (px)", "de": "Schriftgröße (px)" }, "type": "text", "default": "16" },
+			{ "key": "font-bold", "label": { "en": "Bold", "de": "Fett" }, "type": "boolean", "default": false },
+			{ "key": "font-italic", "label": { "en": "Italic", "de": "Kursiv" }, "type": "boolean", "default": false },
+			{ "key": "text-color", "label": { "en": "Font Color", "de": "Schriftfarbe" }, "type": "color", "default": "#213B33" },
+			{
+				"key": "text-align",
+				"label": { "en": "Alignment", "de": "Ausrichtung" },
+				"type": "select",
+				"default": "start",
+				"options": [
+					{ "label": { "en": "Left", "de": "Links" }, "value": "start" },
+					{ "label": { "en": "Center", "de": "Mittig" }, "value": "center" },
+					{ "label": { "en": "Right", "de": "Rechts" }, "value": "end" }
+				]
+			}
+		]
+		}
+	</script>
+
+	<!-- STYLE -->
+	<style id="widget-styles">
+
+		@scope {
+
+			#widget-body {
+
+				/* "start"/"center"/"end" are valid text-align keywords, so the select value flows
+				   straight into CSS. start/end (not left/right) follow the reading direction, so
+				   rtl works without a flex container - and unlike flex + inline-block, every line
+				   of a multi-line label aligns, not just the block */
+				text-align: var(--widget-text-align);
+
+				#label {
+					margin: 0;
+					/* bare number in the option, unit appended here (see patterns.md's
+					   "type: text must be a single unbroken CSS token" gotcha) */
+					font-size: calc(var(--widget-font-size) * 1px);
+					color: var(--widget-text-color);
+
+					/* Boolean options arrive in CSS as the literal token `true`/`false`. A style
+					   container query reads that token off the nearest ancestor (#widget-body,
+					   which inherits the --widget-* vars) - so bold/italic need no JS at all */
+					@container style(--widget-font-bold: true) {
+						font-weight: bold;
+					}
+
+					@container style(--widget-font-italic: true) {
+						font-style: italic;
+					}
+				}
+			}
+		}
+
+	</style>
+
+	<!-- TAGS -->
+	<!-- No loading/active/error state machine - synchronous and config-only (see patterns.md) -->
+	<div id="widget-body">
+		<p id="label" widget-text="display"></p>
+	</div>
+
+	<!-- SCRIPT -->
+	<script id="widget-script">
+
+		(function () {
+
+			// Uses
+			const sdx = window.sdx;
+
+			// Widget
+			const widget = sdx.Widget.getInstance();
+
+			// Activate the widget so data-attributes-lib maps widget-text; everything else is CSS
+			widget.ready();
+
+		})();
+
+	</script>
+
+</widget>

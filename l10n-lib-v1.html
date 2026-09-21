@@ -1,0 +1,193 @@
+<widget>
+
+	<!-- CONFIG -->
+	<script type="application/json" id="widget-config">
+		{
+		"hrid": "l10n-lib-v1",
+		"display": "L10N Library V1",
+		"description": "This is the data attributes abstraction for sdx widgets",
+		"category": "SDX",
+		"layoutUnique": true,
+		"type": "library",
+		"loadIndex": 10,
+		"icon": "comment-multiple-outline",
+		"iconColor": "#83AF00"
+		}
+	</script>
+
+	<!-- SCRIPT -->
+	<script id="widget-script">
+
+		(function () {
+
+			// Uses
+			const sdx = window.sdx;
+
+			// Package
+			const l10n = sdx.l10n = {};
+
+			/**
+			 * Resolves the path of properties starting with obj
+			 * @param {type} obj root object to resolve the path on
+			 * @param {string} path path to resolve
+			 * @returns {Object} the leaf object or null if the path could not get resolved
+			 */
+			function _resolvePath(obj, path)
+			{
+				if (obj === null) {
+					return null;
+				}
+
+				var node = obj;
+				var parts = path.split('.');
+				for (var i = 0; i < parts.length; i++) {
+
+					node = node[parts[i]];
+
+					if (node === null) {
+						return null;
+					}
+				}
+
+				return node;
+			}
+
+			/**
+			 * Currently just a test method for resolving localized messages with vars
+			 * @param {string} locale
+			 * @param {L10N} l10nObj
+			 * @param {string} path
+			 * @param {Object} reference
+			 * @returns {window.sdx.l10n.resolveL10N.message|Window.sdx.l10n.resolveL10N.message}
+			 */
+			l10n.resolveL10N = function (locale, l10nObj, path, reference)
+			{
+				var message = _resolvePath(l10nObj[locale], path);
+
+				if (message === null) {
+					return 'MISSING L10N: ' + locale + '.' + path;
+				}
+
+				message = message.replace(/\$\w+/g, function (all) {
+					return reference[all.substring(1)];
+				});
+
+				return message;
+			};
+
+			/**
+			 *
+			 * @param {type} path
+			 * @param {type} fallback
+			 * @returns {unresolved|l10n-lib-widget-v1L#4.translate.message}
+			 */
+			l10n.translate = function (path, fallback)
+			{
+				var localization = window.parent && window.parent.Application && window.parent.Application.customLocalization;
+
+				if (!localization) {
+					return fallback;
+				}
+
+				var locale = l10n.getCurrentLocale();
+				var message = _resolvePath(localization[locale], path);
+
+				return message !== null ? message : fallback;
+			};
+
+			/**
+			 *
+			 * @returns {Event.detail|window.parent.currentLocale|Window.currentLocale|String|null}
+			 */
+			l10n.getCurrentLocale = function ()
+			{
+				try {
+					return (window.parent.currentLocale || window.parent.localStorage.getItem('i18n.locale') || 'en');
+				} catch (e) {
+					return 'en';
+				}
+			};
+
+			/**
+			 *
+			 * @param {type} root
+			 * @returns {undefined}
+			 */
+			l10n.applyStaticLocalization = function (root)
+			{
+				(root || document).querySelectorAll('[data-loc-key]').forEach(function (element) {
+
+					var value = l10n.translate(element.getAttribute('data-loc-key'), null);
+
+					if (value !== null) {
+						element.textContent = value;
+					}
+				});
+			};
+
+			/**
+			 *
+			 * @param {type} callback
+			 * @returns {undefined}
+			 */
+			l10n.onLocaleChange = function (callback)
+			{
+				window.parent.addEventListener('locale-changed', function (event) {
+					window.parent.currentLocale = event.detail;
+					callback();
+				});
+			};
+
+			/**
+			 * Add l10n to widgets
+			 * @returns {L10N}
+			 */
+			sdx.Widget.prototype.getL10N = function ()
+			{
+				return JSON.parse(this.findElement('#widget-l10n').textContent);
+			};
+
+			/**
+			 *
+			 * @param {string} path
+			 * @param {object} ref
+			 * @returns {}
+			 */
+			sdx.Widget.prototype.resolveL10N = function (path, ref)
+			{
+				var locale = l10n.getCurrentLocale();
+				var l10nObj = this.getL10N();
+				var message = l10n.resolveL10N(locale, l10nObj, path, ref);
+
+				return message;
+			};
+
+			/**
+			 *
+			 * @returns {undefined}
+			 */
+			sdx.Widget.prototype.applyStaticLocalization = function ()
+			{
+				l10n.applyStaticLocalization(this._root);
+			};
+
+			/**
+			 *
+			 * @returns {undefined}
+			 */
+			sdx.Widget.prototype.keepStaticLocalization = function ()
+			{
+
+				this.applyStaticLocalization();
+
+				const thiz = this;
+				l10n.onLocaleChange(function () {
+					thiz.applyStaticLocalization();
+				});
+			};
+
+		})();
+
+	</script>
+
+</widget>

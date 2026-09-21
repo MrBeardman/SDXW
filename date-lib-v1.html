@@ -1,0 +1,167 @@
+<widget>
+
+	<!-- CONFIG -->
+	<script type="application/json" id="widget-config">
+		{
+		"hrid": "date-lib-v1",
+		"display": "Date Library V1",
+		"description": "This is the date abstraction for sdx widgets",
+		"category": "SDX",
+		"layoutUnique": true,
+		"type": "library",
+		"loadIndex": 10,
+		"icon": "calendar-text",
+		"iconColor": "#003FA5"
+		}
+	</script>
+
+	<!-- SCRIPT -->
+	<script id="widget-script">
+
+		(function () {
+
+			// Uses
+			const sdx = window.sdx;
+
+			// Package
+			const date = sdx.date = {};
+
+			// Globals
+			date.CATEGORY_NIGHT = 'night';
+			date.CATEGORY_MORNING = 'morning';
+			date.CATEGORY_NOON = 'noon';
+			date.CATEGORY_AFTERNOON = 'afternoon';
+			date.CATEGORY_EVENING = 'evening';
+			const MONTH_KEY_LENGTH = 7;
+
+			/**
+			 * Converts an Excel serial number, a date string or a Date into a Date
+			 * @param {*} value The value to convert
+			 * @returns {Date|null} The date, or null if the value could not be read
+			 */
+			date.toDate = function (value)
+			{
+				if (value === null || value === '') {
+					return null;
+				}
+
+				if (value instanceof Date) {
+					return value;
+				}
+
+				if (typeof value === 'number') {
+					return new Date(Math.round((value - 25569) * 86400 * 1000));
+				}
+
+				var parsed = new Date(value);
+
+				return isNaN(parsed.getTime()) ? null : parsed;
+			};
+
+			/**
+			 * Returns the date aligned to the start of its day.
+			 * @param {Date} dateObj The date to be aligned
+			 * @returns {Number} Epoch as Number
+			 */
+			date.startOfDay = function (dateObj)
+			{
+				return new Date(dateObj.getFullYear(), dateObj.getMonth(), dateObj.getDate()).getTime();
+			};
+
+			/**
+			 * Builds the YYYY-MM-DD key of a date
+			 * @param {Date} dateObj The date to convert
+			 * @returns {String} The key
+			 */
+			date.toDayKey = function (dateObj)
+			{
+				const month = String(dateObj.getMonth() + 1).padStart(2, '0');
+				const day = String(dateObj.getDate()).padStart(2, '0');
+
+				return dateObj.getFullYear() + '-' + month + '-' + day;
+			};
+
+			/**
+			 * Reduces a date or a day key to the month it falls in
+			 * @param {Date|String} value A date, or a day key as toDayKey returns it
+			 * @returns {String} The month key, YYYY-MM
+			 */
+			date.toMonthKey = function (value)
+			{
+				const dayKey = typeof value === 'string' ? value : date.toDayKey(value);
+
+				return dayKey.slice(0, MONTH_KEY_LENGTH);
+			};
+
+			/**
+			 * Converts a HH:MM time into hours, so a day can be drawn on one axis
+			 * @param {String} value The time to convert
+			 * @returns {Number|null} The hour, or null if the time could not be read
+			 */
+			date.toHours = function (value)
+			{
+				const parts = String(value || '').split(':');
+
+				if (parts.length < 2) {
+					return null;
+				}
+
+				const hours = Number(parts[0]);
+				const minutes = Number(parts[1]);
+
+				if (isNaN(hours) || isNaN(minutes)) {
+					return null;
+				}
+
+				return hours + minutes / 60;
+			};
+
+			date.formatDate = function (value)
+			{
+				var parsed = date.toDate(value);
+
+				if (parsed === null) {
+					return value === null ? '' : String(value);
+				}
+
+				// @todo currently using 'de-DE' as hardcoded locale for formatting -> should use propery user locale?
+				return parsed.toLocaleDateString('de-DE');
+			};
+
+			/**
+			 * Provides a streamlined categorization of times of day
+			 * @returns {String}
+			 */
+			date.getDayTimeCategory = function ()
+			{
+				var now = new Date();
+				var hours = now.getHours();
+
+				if (hours >= 22) {
+					return date.CATEGORY_NIGHT;
+				}
+
+				if (hours >= 18) {
+					return date.CATEGORY_EVENING;
+				}
+
+				if (hours >= 14) {
+					return date.CATEGORY_AFTERNOON;
+				}
+
+				if (hours >= 11) {
+					return date.CATEGORY_NOON;
+				}
+
+				if (hours >= 6) {
+					return date.CATEGORY_MORNING;
+				}
+
+				return date.CATEGORY_NIGHT;
+			};
+
+		})();
+
+	</script>
+
+</widget>

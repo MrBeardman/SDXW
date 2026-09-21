@@ -1,0 +1,100 @@
+<widget>
+
+	<!-- CONFIG -->
+	<script type="application/json" id="widget-config">
+		{
+		"hrid": "chart-lib-v1",
+		"display": "Chart Library V1",
+		"description": "Abstracts access to Echarts. See https://echarts.apache.org/en/index.html",
+		"category": "SDX",
+		"layoutUnique": true,
+		"type": "library",
+		"loadIndex": 10,
+		"icon": "chart-areaspline",
+		"iconColor": "#0093C0"
+		}
+	</script>
+
+	<!-- SCRIPT -->
+	<script id="widget-script">
+
+		(function () {
+
+			// Uses
+			const sdx = window.sdx;
+
+			// Package
+			const charts = sdx.charts = {};
+
+			// Globals 
+			const HEX_BASE = 16;
+
+			/**
+			 * Returns the echarts lib object
+			 * @returns {ECharts}
+			 */
+			charts.getEcharts = function ()
+			{
+				return window.parent && window.parent.Application && window.parent.Application.echarts;
+			};
+
+			/**
+			 * Extend Widget to return a Template instance for the given selector
+			 * @param {EChartsOptions} chartOptions gets the template root
+			 * @param {String} selector gets the template root
+			 * @returns {EChart}
+			 */
+			sdx.Widget.prototype.createChart = function (chartOptions, selector)
+			{
+				const echarts = charts.getEcharts();
+
+				const chart = this.findElement(selector);
+
+				const chartEC = echarts.init(chart);
+
+				chartEC.setOption(chartOptions, true);
+
+				window.onresize = function () {
+					chartEC.resize();
+				};
+
+				return chartEC;
+			};
+
+						/**
+			 * Builds a gradient of the given length, since a palette of two colours is
+			 * cycled rather than interpolated once there are more slices than colours
+			 * @param {String} fromColor
+			 * @param {String} toColor
+			 * @param {Number} count
+			 * @returns {Array} The colours
+			 */
+			charts.buildShades = function (fromColor, toColor, count)
+			{
+				const from = parseInt(fromColor.slice(1), HEX_BASE);
+				const to = parseInt(toColor.slice(1), HEX_BASE);
+				const shades = [];
+
+				for (let index = 0; index < count; index++) {
+
+					const ratio = count > 1 ? index / (count - 1) : 0;
+					let color = 0;
+
+					for (let shift = 0; shift <= 16; shift += 8) {
+
+						const channel = Math.round(((from >> shift) & 255) + (((to >> shift) & 255) - ((from >> shift) & 255)) * ratio);
+
+						color += channel << shift;
+					}
+
+					shades.push('#' + color.toString(HEX_BASE).padStart(6, '0'));
+				}
+
+				return shades;
+			};
+
+		})();
+
+	</script>
+
+</widget>

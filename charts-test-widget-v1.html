@@ -1,0 +1,299 @@
+<widget>
+
+    <!-- CONFIG
+	{
+		"key": "chart-type",
+		"label": { "en": "Type", "de": "Typ" },
+		"type": "select",
+		"default": "line",
+		"options": [
+			{ "label": { "en": "Line", "de": "Linie" }, "value": "line" },
+			{ "label": { "en": "Bar", "de": "Balken" }, "value": "bar" },
+			{ "label": { "en": "Pie", "de": "Kreis" }, "value": "pie" }
+		]
+	}
+	-->
+    <script type="application/json" id="widget-config">
+        {
+		"hrid" : "charts-test-widget-v1",
+		"display" : "Charts Test Widget V1",
+		"description" : "Test charting support in SDX widgets",
+		"category" : "Testing",
+		"type": "widget",
+		"layoutUnique" : false,
+		"icon" : "alert-box",
+		"iconColor" : "#FF8C00",
+		"options": [
+		{ "key": "title", "label": "Title", "type": "text", "default": "Portfolio Overview" },
+		{ "key": "chart-color-start", "label": "Color Start", "type": "color", "default": "#213B33" },
+		{ "key": "chart-color-end", "label": "Color End", "type": "color", "default": "#213B33" },
+		{ "key": "chart-show-legend", "label": "Show legend", "type": "boolean", "default": "true" }
+		]
+        }
+    </script>
+
+    <!-- STYLE -->
+    <style id="widget-styles">
+
+		@scope {
+
+			#widget-body {
+
+				position: relative;
+
+				#chart {
+					position: relative;
+					border-radius: var(--widget-border-radius);
+					background-color: var(--widget-default-background-color);
+					min-height: 400px;
+				}
+
+				[widget-state="loading"] {
+					position: relative;
+					display: flex;
+					justify-content: center;
+					align-items: center;
+					flex-direction: column;
+					min-height: 400px;
+				}
+
+				[widget-state="updating"] {
+					position: absolute;
+					top: 5px;
+					left: 10px;
+					font-size: 20px;
+					color: #3d4d5e;
+					z-index: 1;
+					display: flex;
+					justify-content: left;
+					align-items: start;
+					flex-direction: column;
+					min-height: 400px;
+				}
+
+				.widget-error {
+					min-height: 400px;
+				}
+			}
+		}
+
+    </style>
+
+    <!-- TAGS -->
+    <div id="widget-body">
+
+		<!-- LOADING -->
+		<div widget-state="loading">Loading...</div>
+
+		<!-- ACTIVE -->
+		<div id="chart" class="d-none" widget-state="active"></div>
+
+		<!-- UPDATING -->
+		<div class="d-none" widget-state="updating">
+			<span class="mdi mdi-refresh-circle mdi-spin"></span>
+		</div>
+
+		<!-- ERROR -->
+		<div class="d-none widget-error" widget-state="error">
+			<small>An error occured in widget</small>
+			<h2 widget-error-message></h2>
+		</div>
+
+    </div>
+
+    <!-- SCRIPT -->
+    <script id="widget-script">
+
+		(function () {
+
+			// Uses
+			const sdx = window.sdx;
+			const api = sdx.api;
+			const xlsx = sdx.xlsx;
+			const charts = sdx.charts;
+			const number = sdx.number;
+
+			// Globals
+			const LIMIT = 50;
+			const CHART_UPDATE = 60000;
+			const LOGICAL_TYPE = 'dataTest';
+			const PROJECT_SHEET_NAME = 'project';
+			const INVESTORS_SHEET_NAME = 'investors';
+
+			// Widget
+			const widget = sdx.Widget.getInstance();
+
+			async function _loadProject(content)
+			{
+				const project = {};
+
+				// Prepare the project
+				project.amount = 0;
+				project.shares = [];
+				project.content = content;
+				project.workbook = await xlsx.Workbook.loadInstance(content.id);
+
+				// Load the investor data
+				project.workbook.getSheetAsJson(INVESTORS_SHEET_NAME).forEach(function (share) {
+
+					// Make every share references the content it comes from
+					share.project = project;
+					// Aggregate data total invest sum per content
+					project.amount += share.amount;
+
+					project.shares.push(share);
+				});
+
+				// Create relativeAmount for each item
+				for (const share of project.shares) {
+					share.relativeAmount = share.amount / share.project.amount;
+				}
+
+				// Load project meta data
+				project.workbook.getSheetAsJson(PROJECT_SHEET_NAME).forEach(function (attribute) {
+
+					project[attribute.key] = attribute.value;
+				});
+
+				return project;
+			}
+
+			async function _loadProjects()
+			{
+				// Load not hidden contents of logicalType = dataTest -> should all be xlsx files
+				const contents = await api.findByLogicalType(LOGICAL_TYPE, LIMIT);
+
+				// Retrieve data from worksheets with name = investors with certain shape (columns investor and investment both required or ignore)
+				const projects = [];
+
+				// Load project per content
+				for (const content of contents) {
+					projects.push(await _loadProject(content));
+				}
+
+				return projects;
+			}
+
+			async function _loadInvestor()
+			{
+				const investor = {};
+
+				investor.projects = await _loadProjects();
+
+				investor.user = api.getSessionUser();
+				investor.shares = [];
+				investor.totalAmount = 0;
+
+				// Filter project for current user(investor)
+				for (const project of investor.projects) {
+					var projectShares = project.shares.filter(function (share) {
+						return (share.investor === investor.user.id);
+					});
+
+					investor.shares = investor.shares.concat(projectShares);
+				}
+
+				// Aggregate investors total portfolio
+				for (const share of investor.shares) {
+					investor.totalAmount += share.amount;
+				}
+
+				return investor;
+			}
+
+			function _createPortfolioChartOptions(widget, investor)
+			{
+				// Read configurables
+				const title = widget.getConfig("title");
+				const colorStart = widget.getConfig("chart-color-start");
+				const colorEnd = widget.getConfig("chart-color-end");
+				const colorPalette = [colorStart, colorEnd];
+				const showLegend = widget.getConfig("chart-show-legend") === 'true';
+
+				// Prepare data for chart
+				const data = [];
+				for (const share of investor.shares) {
+
+					data.push({
+						value: share.amount,
+						name: share.project.display
+					});
+				}
+
+				// See https://echarts.apache.org/examples/en/editor.html?c=pie-doughnut
+				return {
+					title: {
+						top: '2%',
+						text: title,
+						subtext: investor.user.display + " " + number.formatCurrency(investor.totalAmount),
+						left: 'center'
+					},
+					tooltip: {
+						formatter: function (p) {
+							return p.name + '<br><b>' + number.formatCurrency(p.value) + '</b> (' + p.percent + '%)';
+						},
+						trigger: 'item'
+					},
+					legend: {
+						bottom: '2%',
+						left: 'center',
+						show: showLegend
+					},
+					label: {
+						formatter: function (p) {
+							return p.percent + '% ' + p.name;
+						},
+						show: true
+					},
+					labelLine: {
+						show: true
+					},
+					series: [
+						{
+							color: colorPalette,
+							top: '0%',
+							bottom: '0%',
+							left: 'center',
+							type: 'pie',
+							radius: ['50%', '70%'],
+							avoidLabelOverlap: false,
+							data: data
+						}
+					]
+				};
+			}
+
+			widget.onLoad(async function () {
+
+				//console.log("Loading", this);
+
+				const investor = await _loadInvestor();
+                  console.log(investor); 
+				const chartOptions = _createPortfolioChartOptions(this, investor);
+				
+				
+
+				this._chart = widget.createChart(chartOptions, '#chart');
+			});
+
+			// Update chart every CHART_UPDATE ms
+			widget.setAutoUpdate(CHART_UPDATE);
+			widget.onUpdate(async function () {
+
+				//console.log("Updating", this);
+
+				const investor = await _loadInvestor();
+
+				const chartOptions = _createPortfolioChartOptions(this, investor);
+
+				this._chart.setOption(chartOptions, true);
+			});
+
+			// Call after all prep to load the widget
+			widget.ready();
+
+		})();
+
+    </script>
+
+</widget>

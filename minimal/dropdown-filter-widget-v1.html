@@ -1,0 +1,136 @@
+<!--
+A dropdown that broadcasts its selection for another widget to react to, instead of doing
+anything itself - the "filter another widget" idea, built as a standalone foundation since no
+paired listener widget exists in minimal/ yet (see this widget's CHANGELOG). Mirrors the
+module-level shared-state pattern used by pv-performance-lib's getSelection/setSelection/
+onSelectionChange (see architecture.md), via postMessage instead of a shared library, so this
+widget stays self-contained per SKILL.md rule 8. All option labels are localized (en/de).
+//-->
+<widget>
+
+	<!-- CONFIG -->
+	<script type="application/json" id="widget-config">
+		{
+		"hrid": "dropdown-filter-widget-v1",
+		"display": "Dropdown Filter Widget V1",
+		"description": "A dropdown that broadcasts its selection for another widget to filter by.",
+		"category": "AI Examples/Basic",
+		"type": "widget",
+		"layoutUnique": false,
+		"icon": "filter-outline",
+		"iconColor": "#96C21F",
+		"options": [
+			{ "key": "options-list", "label": { "en": "Options (Label|Value, comma-separated)", "de": "Optionen (Label|Wert, kommagetrennt)" }, "type": "text", "default": "All|all,Documents|docs,Images|images" },
+			{ "key": "default-option", "label": { "en": "Default option (matches a label above)", "de": "Standardoption (entspricht einem Label oben)" }, "type": "text", "default": "All" },
+			{ "key": "broadcast-key", "label": { "en": "Broadcast key (namespaces this dropdown's messages)", "de": "Broadcast-Schlüssel (kennzeichnet die Nachrichten dieses Dropdowns)" }, "type": "text", "default": "category-filter" }
+		]
+		}
+	</script>
+
+	<!-- STYLE -->
+	<style id="widget-styles">
+
+		@scope {
+
+			#widget-body {
+
+				#dropdown {
+					padding: 8px 12px;
+					cursor: pointer;
+				}
+			}
+		}
+
+	</style>
+
+	<!-- TAGS -->
+	<!-- No loading/active/error state machine - synchronous and config-only (see patterns.md) -->
+	<div id="widget-body">
+		<select id="dropdown"></select>
+	</div>
+
+	<!-- SCRIPT -->
+	<script id="widget-script">
+
+		(function () {
+
+			// Uses
+			const sdx = window.sdx;
+
+			// Widget
+			const widget = sdx.Widget.getInstance();
+
+			widget.onLoad(function () {
+
+				const select = widget.findElement('#dropdown');
+				const defaultLabel = widget.getConfig('default-option').trim();
+				const broadcastKey = widget.getConfig('broadcast-key').trim() || 'default';
+
+				const entries = widget.getConfig('options-list')
+					.split(',')
+					.map(function (entry) {
+						const parts = entry.split('|');
+						return {
+							label: (parts[0] || '').trim(),
+							value: (parts[1] || '').trim()
+						};
+					})
+					.filter(function (entry) {
+						return entry.label !== '' && entry.value !== '';
+					});
+
+				entries.forEach(function (entry) {
+
+					const option = document.createElement('option');
+
+					option.value = entry.value;
+					option.textContent = entry.label;
+
+					if (entry.label === defaultLabel) {
+						option.selected = true;
+					}
+
+					select.appendChild(option);
+				});
+
+				/**
+				 * Broadcasts this dropdown's current selection. No sdx.* library involved
+				 * deliberately (see this widget's header comment) - any future listener
+				 * widget just needs a plain `window.addEventListener('message', ...)` that
+				 * checks `event.data.type === 'dropdown-selection'` and its own `key`.
+				 * @param {String} value
+				 * @param {String} label
+				 * @returns {undefined}
+				 */
+				function broadcast(value, label) {
+					window.postMessage({ type: 'dropdown-selection', key: broadcastKey, value: value, label: label }, '*');
+				}
+
+				select.addEventListener('change', function () {
+
+					const entry = entries.find(function (e) {
+						return e.value === select.value;
+					});
+
+					broadcast(select.value, entry ? entry.label : '');
+				});
+
+				// Broadcast the starting selection too, not just future changes - a listener
+				// widget that finishes loading after this one still learns the initial state.
+				const initial = entries.find(function (e) {
+					return e.label === defaultLabel;
+				}) || entries[0];
+
+				if (initial) {
+					broadcast(initial.value, initial.label);
+				}
+			});
+
+			// Call after all prep to get widget loaded
+			widget.ready();
+
+		})();
+
+	</script>
+
+</widget>

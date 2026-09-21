@@ -1,0 +1,25 @@
+{
+	"logicalType": "",
+	"hidden": false,
+	"created": 1784731825098,
+	"description": "",
+	"customData": {
+		"checksumSHA256": "6A5E37668E9AF63738F4B976EB038DD0D434D95EB43498D6A56C3A7914F8FE53",
+		"type": "Map<String,Object>",
+		"checksumMD5": "5128B83BECAF99933B3032774AB83B07"
+	},
+	"mimeType": "image/jpeg",
+	"type": "de.jenomics.sde.entities.contents.DefaultFileContent",
+	"encoding": "",
+	"parentId": "d6bc0706-a2ab-4679-b6f4-eb9c20a9a4d7",
+	"spaceId": "d6bc0706-a2ab-4679-b6f4-eb9c20a9a4d7",
+	"newContent": true,
+	"size": 415882,
+	"createdBy": "32ec023d-1ed6-4ce5-82d3-9492d605b35d",
+	"changedBy": "32ec023d-1ed6-4ce5-82d3-9492d605b35d",
+	"name": "IMAGE-JPG.jpg",
+	"id": "eac7479b-b8b1-4ca5-bc88-90f54e4db7d9",
+	"ownedBy": "32ec023d-1ed6-4ce5-82d3-9492d605b35d",
+	"auditDownloadOrPreview": true,
+	"changed": 1784731850397
+}

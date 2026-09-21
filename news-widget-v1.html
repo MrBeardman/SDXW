@@ -1,0 +1,220 @@
+<widget>
+
+    <!-- CONFIG -->
+    <script type="application/json" id="widget-config">
+        {
+			"hrid" : "news-widget-v1",
+			"display" : "News Widget V1",
+			"description" : "This is the news widget of sdx",
+			"category" : "News",
+			"type": "widget",
+			"layoutUnique" : false,
+			"icon" : "newspaper",
+			"iconColor" : "#123456",
+			"options": [
+				{ "key": "logicalType", "label": "Content logicalType to query", "type": "text", "default": "news" },
+				{ "key": "sheetName", "label": "Sheet name", "type": "text", "default": "news" },
+				{ "key": "limit", "label": "Max files", "type": "text", "default": "50" },
+				{ "key": "accentColor", "label": "Accent color", "type": "color", "default": "#96C21F" },
+				{ "key": "defaultBackgroundLogicalType", "label": "Default background image logicalType", "type": "text", "default": "news-default-background" }
+			]
+        }
+    </script>
+
+    <!-- L10N -->
+    <script type="application/json" id="widget-l10n">
+        {
+			"de" : {
+				"loading": "Wird geladen…",
+				"noNewsFound": "Keine Neuigkeiten gefunden.",
+				"failedToLoad": "Neuigkeiten konnten nicht geladen werden."
+			},
+			"en" : {
+				"loading": "Loading…",
+				"noNewsFound": "No news found.",
+				"failedToLoad": "Failed to load news."
+			}
+        }
+    </script>
+
+    <!-- STYLE -->
+    <style id="widget-styles">
+        @scope {
+
+            #widget-body {
+
+                .news-grid {
+                    display: grid;
+                    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+                    gap: 14px;
+                    padding: 5px;
+                }
+
+                .news-card {
+                    position: relative;
+                    height: 220px;
+                    border-radius: var(--widget-border-radius);
+                    overflow: hidden;
+                    background-color: var(--widget-accentColor);
+                    background-size: cover;
+                    background-position: center;
+                    display: flex;
+                    flex-direction: column;
+                    justify-content: flex-end;
+                    color: var(--widget-default-background-color);
+                    text-decoration: none;
+                    padding: 14px 16px;
+                }
+
+                .date-chip {
+                    position: absolute;
+                    top: 12px;
+                    left: 12px;
+                    font-size: 12px;
+                    font-weight: 600;
+                    background: rgba(255, 255, 255, 0.16);
+                    padding: 4px 10px;
+                    border-radius: 999px;
+                }
+
+                .news-title {
+                    margin: 0;
+                    font-size: 18px;
+                    font-weight: 900;
+                    line-height: 1.1;
+                }
+
+                .news-text {
+                    margin: 6px 0 0;
+                    display: -webkit-box;
+                    -webkit-line-clamp: 3;
+                    -webkit-box-orient: vertical;
+                    overflow: hidden;
+                }
+
+                .read-more {
+                    width: 40px;
+                    height: 40px;
+                    margin-left: auto;
+                    border-radius: 50%;
+                    background: var(--widget-default-background-color);
+                    color: #1b2733;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    transition: background .2s ease, color .2s ease, transform .2s ease;
+                }
+
+                .news-card.has-link {
+                    transition: transform .5s;
+                }
+
+                .news-card.has-link:hover {
+                    transform: scale(1.03);
+                }
+
+                .news-card.has-link:hover .read-more {
+                    background: var(--widget-accentColor);
+                    color: var(--widget-default-background-color);
+                    transform: translateX(2px);
+                }
+            }
+        }
+    </style>
+
+    <!-- TAGS -->
+    <div id="widget-body">
+        <div widget-state="loading">Loading…</div>
+
+        <div id="news-grid" class="news-grid d-none" widget-state="active">
+            <div id="news-card-template" class="d-none">
+                <a class="news-card" template-link="link" template-background-image="image" template-class="flavor" target="_blank" rel="noopener">
+                    <div class="date-chip" template-text="date" template-visible="hasDate">6.8.2026</div>
+                    <div class="news-content">
+                        <h2 class="news-title" template-text="title">New news title</h2>
+                        <p class="news-text" template-text="text" template-visible="hasText">This is description of
+                            template</p>
+                        <i class="mdi mdi-arrow-right read-more" aria-hidden="true" template-visible="hasLink"></i>
+                    </div>
+                </a>
+            </div>
+
+            <div class="d-none widget-error" widget-state="error">
+                <small>Could not load widget</small>
+                <h2 widget-error-message></h2>
+            </div>
+        </div>
+    </div>
+
+    <!-- SCRIPT -->
+    <script id="widget-script">
+
+        (function () {
+
+            // Uses
+            const sdx = window.sdx;
+            const api = sdx.api;
+            const date = sdx.date;
+            const news = sdx.news;
+
+            // Widget
+            const widget = sdx.Widget.getInstance();
+
+            /**
+             * Turns news items into template data, adding the values the card markup expects
+             * @param {Array} items The news items
+             * @returns {Array} The prepared entries
+             */
+            function _prepareData(items) 
+            {
+                return items.map(function (item) {
+
+                    var hasText = !!(item.text && String(item.text).trim());
+
+                    return {
+                        title: item.title,
+                        text: item.text,
+                        link: item.link,
+                        image: item.image,
+                        date: sdx.date.formatDate(item.date),
+                        hasDate: item.date !== null,
+                        hasText: hasText,
+                        hasLink: !!item.link,
+                        flavor: item.link ? 'has-link' : null
+                    };
+                });
+            }
+
+            // Set the load callback for the current widget
+           widget.onLoad(async function () {
+
+				widget.findElement('[widget-state="loading"]').textContent = widget.resolveL10N('loading', {});
+
+				const result = await news.load({
+					logicalType: widget.getConfig('logicalType'),
+					sheetName: widget.getConfig('sheetName'),
+					limit: Number(widget.getConfig('limit')),
+					backgroundType: widget.getConfig('defaultBackgroundLogicalType')
+				});
+
+				if (!result.items.length) {
+					throw new Error(result.failed
+						? widget.resolveL10N('failedToLoad', {})
+						: widget.resolveL10N('noNewsFound', {}));
+				}
+
+				const data = _prepareData(result.items);
+				const container = widget.findElement('#news-grid');
+				const template = widget.createTemplate('#news-card-template');
+
+				template.append(data, container);
+			});
+
+            // Call after all prep to get widget loaded
+            widget.ready();
+
+        })();
+
+    </script>
+
+</widget>

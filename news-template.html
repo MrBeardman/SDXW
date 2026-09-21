@@ -1,0 +1,428 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Lato:wght@400;700;900&display=swap" rel="stylesheet">
+  <script type="application/json" id="widget-schema">
+{
+  "fields": [
+    { "key": "logicalType", "label": "Content logicalType to query", "type": "text", "default": "news" },
+    { "key": "sheetName", "label": "Sheet name", "type": "text", "default": "news" },
+    { "key": "limit", "label": "Max files", "type": "text", "default": "50" },
+    { "key": "accentColor", "label": "Accent color", "type": "color", "default": "#6fa524" },
+    { "key": "defaultBackgroundLogicalType", "label": "Default background image logicalType", "type": "text", "default": "news-default-background" }
+  ]
+}
+</script>
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: 'Lato', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      color: #1b2733;
+      padding: 20px 14px;
+    }
+
+    .state {
+      padding: 24px;
+      text-align: center;
+      color: rgba(0, 0, 0, 0.55);
+    }
+
+    .news-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 14px;
+    }
+
+    .news-card {
+      position: relative;
+      height: 220px;
+      border-radius: 14px;
+      overflow: hidden;
+      background: #33414f center/cover no-repeat;
+      display: flex;
+      flex-direction: column;
+      justify-content: flex-end;
+      color: #fff;
+      text-decoration: none;
+      transition: transform .15s ease, box-shadow .15s ease;
+    }
+
+    a.news-card {
+      cursor: pointer;
+    }
+
+    a.news-card:hover {
+      transform: translateY(-2px);
+    }
+
+    .news-card.ambient {
+      background:
+        radial-gradient(circle at 80% 22%, rgba(255, 255, 255, 0.92) 0%, rgba(255, 255, 255, 0) 24%),
+        linear-gradient(135deg, #8fd3e8 0%, #bfe08a 55%, var(--widget-accentColor, #6fa524) 100%);
+    }
+
+    .scrim {
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(to top, rgba(0, 0, 0, 0.78) 0%, rgba(0, 0, 0, 0.15) 52%, rgba(0, 0, 0, 0) 100%);
+    }
+
+    .news-card.no-text .scrim {
+      background: linear-gradient(to top, rgba(0, 0, 0, 0.55) 0%, rgba(0, 0, 0, 0) 48%);
+    }
+
+    .date-chip {
+      position: absolute;
+      top: 12px;
+      left: 12px;
+      z-index: 2;
+      font-size: 12px;
+      font-weight: 600;
+      letter-spacing: .5px;
+      color: #fff;
+      background: rgba(255, 255, 255, 0.16);
+      -webkit-backdrop-filter: blur(10px);
+      backdrop-filter: blur(10px);
+      padding: 4px 10px;
+      border-radius: 999px;
+    }
+
+    .news-content {
+      position: relative;
+      z-index: 2;
+      padding: 14px 16px;
+    }
+
+    .news-title {
+      font-size: 18px;
+      font-weight: 900;
+      line-height: 1.1;
+    }
+
+    .news-text {
+      font-size: 14px;
+      margin-top: 6px;
+      line-height: 1.4;
+      color: rgba(255, 255, 255, 0.92);
+      display: -webkit-box;
+      -webkit-line-clamp: 3;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+    }
+
+    .read-more {
+      margin-top: 10px;
+      min-height: 34px;
+      display: flex;
+      align-items: center;
+      justify-content: flex-end;
+    }
+
+    .rm-circle {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 38px;
+      height: 38px;
+      border-radius: 50%;
+      background: #fff;
+      color: #1b2733;
+      flex-shrink: 0;
+      transition: background 0.2s ease, color 0.2s ease, transform 0.2s ease;
+    }
+
+    .rm-circle svg {
+      width: 18px;
+      height: 18px;
+    }
+
+    a.news-card:hover .rm-circle {
+      background: var(--widget-accentColor, #6fa524);
+      color: #fff;
+      transform: translateX(2px);
+    }
+
+    @media (max-width:720px) {
+      .news-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+    }
+
+    @media (max-width:420px) {
+      .news-grid {
+        grid-template-columns: minmax(0, 1fr);
+      }
+    }
+  </style>
+</head>
+
+<body>
+
+  <div id="state" class="state" data-loc-key="generic.loading">Loading…</div>
+  <div id="news-grid" class="news-grid" style="display:none;"></div>
+
+  <script>
+    (function () {
+      // This widget can be placed on a dashboard alongside other widgets, all injected
+      // directly into the same document (not separate iframes). Element ids here are only
+      // unique WITHIN this widget's own markup, so document.getElementById/querySelector
+      // must never be used directly - they'd silently grab another widget instance's
+      // element instead of this one's. __root is this widget's own container; $() looks
+      // up elements scoped to it.
+      var __root = (document.currentScript && document.currentScript.parentNode) || document;
+      function $(sel) { return __root.querySelector(sel); }
+
+      function readConfig(key, fallback) {
+        try {
+          var v = getComputedStyle(__root).getPropertyValue('--widget-' + key); v = (v || '').trim();
+          return v || fallback;
+        } catch (e) {
+          return fallback;
+        }
+      }
+
+      function showState(message) {
+        var s = $('#state'), g = $('#news-grid');
+        s.textContent = message; s.style.display = 'block'; g.style.display = 'none';
+      }
+
+      function getApi() {
+        return window.parent && window.parent.Application && window.parent.Application.api;
+      }
+
+      function lib() {
+        return window.parent && window.parent.SspaLib;
+      }
+
+      function getSpaceUuid() {
+        try {
+          var p = (window.parent && window.parent.location && window.parent.location.pathname) || '';
+          var m = p.match(/\/spaces\/([0-9a-f-]{36})/i);
+          return m && m[1];
+        } catch (e) { return null; }
+      }
+
+      function xlsx() {
+        return window.parent && window.parent.Application && window.parent.Application.xlsx;
+      }
+
+      function t(path, fallback) {
+        var l = window.parent && window.parent.SspaLib;
+        return l ? l.t(path, fallback) : fallback;
+      }
+
+      function applyStaticLocalization() {
+        var l = lib();
+        if (l) l.applyStaticLocalization(__root);
+      }
+
+      function toDate(v) {
+        if (!v) return null;
+        if (v instanceof Date)
+          return v;
+        if (typeof v === 'number') return new Date(Math.round((v - 25569) * 86400 * 1000));
+        var d = new Date(v);
+        return isNaN(d.getTime()) ? null : d;
+      }
+
+      function startOfDay(d) {
+        return new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+      }
+
+      function formatDate(d) {
+        return d ? d.toLocaleDateString('de-DE') : '';
+      }
+
+      function dedupeLatest(list) {
+        var l = lib();
+        return l ? l.dedupeLatest(list) : list;
+      }
+
+      function isVisible(item, today) {
+        var f = item.from ? startOfDay(item.from) : null;
+        var t = item.till ? startOfDay(item.till) : null;
+        if (f !== null && today < f) return false;
+        if (t !== null && today > t) return false;
+        return true;
+      }
+
+      function findDefaultImageId(api, bgType) {
+        return api.contents.find({ contentLogicalType: bgType, contentHidden: false, limit: 1 })
+          .then(function (response) {
+            var c = (response && response.result) || [];
+            return c.length ? c[0].id : null;
+          })
+          .catch(function () {
+            return null;
+
+          });
+      }
+
+      function getNewsRows(workbook, sheetName) {
+        var name = workbook.SheetNames.find(function (n) {
+          return n.toLowerCase() === sheetName.toLowerCase();
+        }) || workbook.SheetNames[0];
+        return xlsx().utils.sheet_to_json(workbook.Sheets[name]);
+      }
+
+      function fetchWorkbookRows(api, contentId, sheetName) {
+        var url = api.contents.streamAsGetURL(contentId, true);
+        return fetch(url, { credentials: 'include' })
+          .then(function (r) { return r.arrayBuffer(); })
+          .then(function (buf) {
+            var wb = xlsx().read(new Uint8Array(buf), { type: 'array', cellDates: true });
+            return getNewsRows(wb, sheetName);
+          });
+      }
+
+      function normalizeRows(raw) {
+        return raw.map(function (row) {
+          return {
+            title: row['title'], text: row['text'], image: row['image'], link: row['link'],
+            date: toDate(row['date']), from: toDate(row['from']), till: toDate(row['till']),
+          };
+        }).filter(function (r) { return r.title; });
+      }
+
+      function renderNews(api, items, defaultImageId) {
+        var grid = $('#news-grid');
+        grid.innerHTML = '';
+
+        items.forEach(function (item) {
+          var hasText = !!(item.text && String(item.text).trim());
+
+          var card = document.createElement(item.link ? 'a' : 'div');
+          card.className = 'news-card' + (hasText ? '' : ' no-text');
+          if (item.link) {
+            card.href = item.link; card.target = '_blank'; card.rel = 'noopener';
+
+          }
+
+          var imageId = item.image || defaultImageId;
+          if (imageId) {
+            card.style.backgroundImage = 'url(' + api.contents.streamAsGetURL(imageId, true) + ')';
+          }
+          else { card.className += ' ambient'; }
+
+          card.appendChild(Object.assign(document.createElement('div'), { className: 'scrim' }));
+
+          if (item.date) {
+            var chip = document.createElement('div'); chip.className = 'date-chip';
+            chip.textContent = formatDate(item.date); card.appendChild(chip);
+          }
+
+          var content = document.createElement('div'); content.className = 'news-content';
+
+          var title = document.createElement('div'); title.className = 'news-title';
+          title.textContent = item.title || t('news.untitled', 'Untitled');
+          content.appendChild(title);
+
+          if (hasText) {
+            var text = document.createElement('div'); text.className = 'news-text';
+            text.textContent = item.text; content.appendChild(text);
+          }
+          var rm = document.createElement('div'); rm.className = 'read-more';
+          if (item.link) {
+            rm.innerHTML = '<span class="rm-circle" aria-hidden="true">' +
+              '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round">' +
+              '<path d="M5 12h14M13 6l6 6-6 6"/></svg>' +
+              '</span>';
+          }
+          content.appendChild(rm);
+
+          card.appendChild(content);
+          grid.appendChild(card);
+        });
+
+        $('#state').style.display = 'none';
+        grid.style.display = 'grid';
+      }
+
+      var newsLoaded = false;
+      async function loadNews() {
+        if (newsLoaded) return;
+        newsLoaded = true;
+        applyStaticLocalization();
+        var api = getApi();
+        if (!api) {
+          showState(t('generic.apiUnavailable', 'Widget API not available.'));
+          return;
+        }
+
+        var l = lib();
+        if (l) l.onLocaleChange(function () {
+          applyStaticLocalization();
+        });
+
+        var logicalType = readConfig('logicalType', 'news');
+        var sheetName = readConfig('sheetName', 'news');
+        var limit = Number(readConfig('limit', '50')) || 50;
+        var defaultBgType = readConfig('defaultBackgroundLogicalType', 'news-default-background');
+        var defaultImageId = await findDefaultImageId(api, defaultBgType);
+
+        var response;
+        try {
+          response = await api.contents.find({ contentLogicalType: logicalType, contentHidden: false, limit: limit });
+        }
+        catch (error) {
+          showState(t('news.failedToLoad', 'Failed to load news.'));
+          return;
+        }
+
+        var contents = (response && response.result) || [];
+
+        var spaceUuid = getSpaceUuid();
+        if (spaceUuid) {
+          contents = contents.filter(function (c) {
+            return c.spaceId === spaceUuid;
+          });
+        }
+        contents = dedupeLatest(contents);
+
+        if (!contents.length) {
+          showState(t('news.noNewsFound', 'No news found.'));
+          return;
+        }
+
+        var items = [];
+        for (var i = 0; i < contents.length; i++) {
+          try {
+            normalizeRows(await fetchWorkbookRows(api, contents[i].id, sheetName)).forEach(function (it) {
+              items.push(it);
+            });
+          }
+          catch (error) { console.error('Failed to read news file', contents[i].id, error); }
+        }
+
+        var today = startOfDay(new Date());
+        items = items.filter(function (it) { return isVisible(it, today); });
+        if (!items.length) {
+          showState(t('news.noNewsFound', 'No news found.'));
+          return;
+        }
+
+        items.sort(function (a, b) {
+          var ad = (a.date || a.from), bd = (b.date || b.from);
+          return (bd ? bd.getTime() : 0) - (ad ? ad.getTime() : 0);
+        });
+
+        renderNews(api, items, defaultImageId);
+      }
+
+      window.addEventListener('load', loadNews);
+      setTimeout(loadNews, 0);
+    })();
+  </script>
+</body>
+
+</html>

@@ -1,0 +1,167 @@
+<widget>
+
+    <!-- CONFIG -->
+    <script type="application/json" id="widget-config">
+        {
+		"hrid": "xlsx-lib-v1",
+		"display": "XLSX Library V1",
+		"description": "This is the xlsx abstraction for sdx widgets",
+		"category": "SDX",
+		"layoutUnique": true,
+		"type": "library",
+		"loadIndex": 20,
+		"icon": "file-table-outline",
+		"iconColor": "#1D6F42"
+		}
+    </script>
+
+    <!-- SCRIPT -->
+	<script id="widget-script" >
+
+		(function () {
+
+			//Uses
+			const sdx = window.sdx;
+			const api = sdx.api;
+			const dlApi = api.getApi();
+
+			// Package
+			const xlsx = sdx.xlsx = {};
+
+			/**
+			 * Resolves a sheet by name ignoring the case, falling back to the first sheet
+			 * @param {Workbook} workbook
+			 * @param {String} sheetName
+			 * @returns {Object} The sheet
+			 */
+			function _findSheet(workbook, sheetName)
+			{
+				var name = workbook.SheetNames.find(function (candidate) {
+					return candidate.toLowerCase() === sheetName.toLowerCase();
+				}) || workbook.SheetNames[0];
+
+				return workbook.Sheets[name];
+			}
+
+			/**
+			 * Returns the used XLSX Api currently https://docs.sheetjs.com/
+			 * Please avoid using this directly whenever possible to avoid lib detail dependencies
+			 * This method is intended for internal use in this library
+			 * @returns {SheetJSAPI}
+			 */
+			xlsx.getLibrary = function ()
+			{
+				return window.parent && window.parent.Application && window.parent.Application.xlsx;
+			};
+
+			const xlsxApi = xlsx.getLibrary();
+
+			/**
+			 * Converts a xlsx sheet into rows, using the first row of the sheet as keys.
+			 * For shape see https://docs.sheetjs.com/docs/api/utilities/array#array-of-objects-input
+			 *
+			 * @param {Workbook} workbook
+			 * @param {String} sheetName
+			 * @returns {Array} a single sheet as json using the first row as header row
+			 */
+			xlsx.sheetToRows = function (workbook, sheetName)
+			{
+				return xlsxApi.utils.sheet_to_json(_findSheet(workbook, sheetName));
+			};
+
+			/**
+			 * Converts a xlsx sheet into one object, using the first column as keys
+			 * and the second column as values
+			 * @param {Workbook} workbook
+			 * @param {String} sheetName
+			 * @returns {Object} The keys and values of the sheet
+			 */
+			xlsx.sheetToMap = function (workbook, sheetName)
+			{
+				var cells = xlsxApi.utils.sheet_to_json(_findSheet(workbook, sheetName), {header: 1});
+				var map = {};
+
+				cells.forEach(function (row) {
+
+					var key = row[0];
+
+					if (key === undefined || String(key).trim() === '') {
+						return;
+					}
+
+					map[String(key).trim()] = row[1];
+				});
+
+				return map;
+			};
+
+			/**
+			 * Downloads a spreadsheet from SDX and returns the rows of one of its sheets.
+			 * @param {String} contentId The id of the file to read
+			 * @param {String} sheetName The name of the sheet to read
+			 * @returns {Promise} The rows of the sheet
+			 */
+			xlsx.fetchSheetRows = async function (contentId, sheetName)
+			{
+				var url = dlApi.contents.streamAsGetURL(contentId, true, undefined, true);
+
+				return fetch(url, {credentials: 'include', cache: 'no-store'})
+					.then(function (response) {
+						return response.arrayBuffer();
+					})
+					.then(function (buffer) {
+
+						var workbook = xlsxApi.read(new Uint8Array(buffer), {type: 'array', cellDates: true});
+
+						return xlsx.sheetToRows(workbook, sheetName);
+					});
+			};
+
+			xlsx.Workbook = (function ()
+			{
+
+				function Workbook(workbook)
+				{
+					this._workbook = workbook;
+				}
+
+				Workbook.loadInstance = async function (contentId)
+				{
+					var url = dlApi.contents.streamAsGetURL(contentId, true, undefined, true);
+
+					return fetch(url, {credentials: 'include', cache: 'no-store'})
+						.then(function (response) {
+							return response.arrayBuffer();
+						})
+						.then(function (buffer) {
+
+							var workbook = xlsxApi.read(new Uint8Array(buffer), {type: 'array', cellDates: true});
+
+							return new Workbook(workbook);
+						});
+				};
+
+				Workbook.prototype.getSheetAsJson = function (sheetName)
+				{
+					return xlsx.sheetToRows(this._workbook, sheetName);
+				};
+
+				/**
+				 * Returns one sheet as an object, using the first column as keys
+				 * @param {String} sheetName
+				 * @returns {Object} The keys and values of the sheet
+				 */
+				Workbook.prototype.getSheetAsMap = function (sheetName)
+				{
+					return xlsx.sheetToMap(this._workbook, sheetName);
+				};
+
+				return Workbook;
+
+			})();
+
+		})();
+
+	</script>
+
+</widget>

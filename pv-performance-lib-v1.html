@@ -1,0 +1,340 @@
+<widget>
+
+	<!-- CONFIG -->
+	<script type="application/json" id="widget-config">
+		{
+		"hrid": "pv-performance-lib-v1",
+		"display": "PV Performance Library V1",
+		"description": "Aggregates the investor's performance data and holds the project selection the widgets share",
+		"category": "PV",
+		"layoutUnique": true,
+		"type": "library",
+		"loadIndex": 40,
+		"icon": "chart-line",
+		"iconColor": "#96C21F"
+		}
+	</script>
+
+	<!-- SCRIPT -->
+	<script id="widget-script">
+
+		(function () {
+
+			// Uses
+			const sdx = window.sdx;
+			const api = sdx.api;
+			const date = sdx.date;
+			const l10n = sdx.l10n;
+
+			// Package
+			const pvPerformance = sdx.pvPerformance = {};
+
+			// the selection lives here so the chooser and the charts share it, null means all projects
+			let selection = null;
+			const selectionCallbacks = [];
+
+			/**
+			 * Reads how much a project had produced at the given hour
+			 * @param {Object} project
+			 * @param {Number} hour
+			 * @returns {Number} The production up to that hour
+			 */
+			function _producedUntil(project, hour)
+			{
+				if (project.today === null) {
+					return 0;
+				}
+
+				let produced = 0;
+
+				for (const point of project.today.series) {
+
+					if (point.hour > hour) {
+						break;
+					}
+
+					produced = point.produced;
+				}
+
+				return produced;
+			}
+
+			/**
+			 * Merges the day curves of several projects onto one set of hours
+			 * @param {Array} projects
+			 * @returns {Array} The merged curve
+			 */
+			function _mergeSeries(projects)
+			{
+				const hours = [];
+
+				for (const project of projects) {
+
+					if (project.today === null) {
+						continue;
+					}
+
+					for (const point of project.today.series) {
+                        
+						if (hours.indexOf(point.hour) === -1) {
+							hours.push(point.hour);
+						}
+					}
+				}
+
+				hours.sort(function (firstHour, secondHour) {
+					return firstHour - secondHour;
+				});
+
+				return hours.map(function (hour) {
+
+					let produced = 0;
+
+					for (const project of projects) {
+						produced += _producedUntil(project, hour);
+					}
+
+					return {hour: hour, produced: produced};
+				});
+			}
+
+			/**
+			 * Adds what was produced in each step
+			 * @param {Array} series The merged cumulative curve
+			 * @returns {Array} The same points, each carrying the production of its step
+			 */
+			function _addProduction(series)
+			{
+				let previous = 0;
+
+				for (const point of series) {
+
+					// a corrected reading can go backwards, and a negative spike would be nonsense
+					point.power = Math.max(point.produced - previous, 0);
+					previous = point.produced;
+				}
+
+				return series;
+			}
+
+			/**
+			 * Aggregates what the selected projects produced today, weighting the income
+			 * by the investor's share of each project
+			 * @param {Array} projects The projects to aggregate, all of them or a selection
+			 * @returns {Object} Today
+			 */
+			pvPerformance.aggregateToday = function (projects)
+			{
+				const today = {produced: 0, income: 0, series: [], weather: null};
+
+				for (const project of projects) {
+
+					if (project.today === null) {
+						continue;
+					}
+
+					today.produced += project.today.produced;
+					today.income += project.today.income * project.myShare;
+				}
+
+				// one weather for several projects makes no sense, so it only shows for a single active one
+				today.weather = projects.length === 1 && projects[0].weatherActive && projects[0].today !== null
+					? projects[0].today.weather
+					: null;
+
+				today.series = _addProduction(_mergeSeries(projects));
+				
+				return today;
+			};
+
+			/**
+			 * Sums up what each project earned the investor this month, which is what the donut splits
+			 * @param {Array} projects The projects to aggregate
+			 * @returns {Object} The total, one slice per project, and the single project to fall back to
+			 */
+			pvPerformance.aggregatePortfolio = function (projects)
+			{
+				const monthKey = date.toMonthKey(new Date());
+				const slices = [];
+				let total = 0;
+				let lastWithIncome = null;
+
+				for (const project of projects) {
+
+					let projectRevenue = 0;
+
+					for (const day of project.days) {
+
+						if (date.toMonthKey(day.key) !== monthKey) {
+							continue;
+						}
+
+						projectRevenue += day.revenue;
+					}
+
+					const myIncome = projectRevenue * project.myShare;
+
+					total += myIncome;
+
+					if (myIncome > 0) {
+						slices.push({name: project.title, value: myIncome});
+						lastWithIncome = {revenue: projectRevenue, myShare: project.myShare};
+					}
+				}
+
+				return {
+					total: total,
+					slices: slices,
+					// a donut of one slice says nothing, so the widget splits that project
+					// between the investor and the others instead
+					singleProject: slices.length === 1 ? lastWithIncome : null
+				};
+			};
+
+			/**
+			 * Sums the days of the current month across the selected projects
+			 * @param {Array} projects The projects to aggregate
+			 * @returns {Object} One entry per day of the month, and the income total
+			 */
+			pvPerformance.aggregateMonth = function (projects)
+			{
+				const now = new Date();
+				const monthKey = date.toMonthKey(now);
+				const byDay = {};
+				let total = 0;
+
+				for (const project of projects) {
+
+					for (const entry of project.days) {
+
+						if (date.toMonthKey(entry.key) !== monthKey) {
+							continue;
+						}
+
+						let slot = byDay[entry.day];
+
+						if (!slot) {
+							slot = {day: entry.day, income: 0, energy: 0};
+							byDay[entry.day] = slot;
+						}
+
+						const income = entry.revenue * project.myShare;
+
+						slot.income += income;
+						slot.energy += entry.energy;
+						total += income;
+					}
+				}
+
+				const days = [];
+				const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+
+				for (let day = 1; day <= lastDay; day++) {
+					days.push(byDay[day] || {day: day, income: null, energy: null});
+				}
+
+				return {days: days, total: total};
+			};
+
+			/**
+			 * Returns the space ids the widgets currently show, or null for all projects
+			 * Until the chooser sets one, a space page defaults to its own project
+			 * @returns {Array|null} The selection
+			 */
+			pvPerformance.getSelection = function ()
+			{
+				if (selection !== null) {
+					return selection;
+				}
+
+				const spaceUuid = api.getSpaceUuid();
+
+				return spaceUuid ? [spaceUuid] : null;
+			};
+
+			/**
+			 * Changes what the widgets show
+			 * @param {Array|null} spaceIds The space ids to show, or null for all projects
+			 * @returns {undefined}
+			 */
+			pvPerformance.setSelection = function (spaceIds)
+			{
+				selection = spaceIds;
+
+				for (const callback of selectionCallbacks) {
+					callback();
+				}
+			};
+
+			/**
+			 * Registers a callback that runs whenever the selection changes
+			 * @param {Function} callback
+			 * @returns {undefined}
+			 */
+			pvPerformance.onSelectionChange = function (callback)
+			{
+				selectionCallbacks.push(callback);
+			};
+
+			/**
+			 * Picks the projects the current selection asks for
+			 * @param {Object} investor The loaded investor
+			 * @returns {Array} The selected projects
+			 */
+			pvPerformance.selectedProjects = function (investor)
+			{
+				const spaceIds = pvPerformance.getSelection();
+
+				if (spaceIds === null) {
+					return investor.projects;
+				}
+
+				return investor.projects.filter(function (project) {
+					return spaceIds.indexOf(project.spaceId) > -1;
+				});
+			};
+
+			/**
+			 * Returns the project the widgets should name in their heading,
+			 * which is only there when the chooser points at exactly one
+			 * @param {Array} projects The selected projects
+			 * @returns {Object|null} The project, or null
+			 */
+			pvPerformance.namedProject = function (projects)
+			{
+				return pvPerformance.getSelection() !== null && projects.length === 1 ? projects[0] : null;
+			};
+
+			/**
+			 * Builds the periods the charts can be narrowed down to: this month, last month,
+			 * every earlier month of this year, and the two years
+			 * @returns {Array} The periods
+			 */
+			pvPerformance.buildPeriods = function ()
+			{
+				const now = new Date();
+				const locale = l10n.getCurrentLocale();
+				const periods = [
+					{value: 'current-month', key: 'currentMonth'},
+					{value: 'last-month', key: 'lastMonth'}
+				];
+
+				for (let month = now.getMonth() - 2; month >= 0; month--) {
+
+					periods.push({
+						value: 'month-' + month,
+						title: new Date(now.getFullYear(), month, 1).toLocaleDateString(locale, {month: 'long'})
+					});
+				}
+
+				return periods.concat([
+					{value: 'current-year', key: 'currentYear'},
+					{value: 'last-year', key: 'lastYear'}
+				]);
+			};
+
+		})();
+
+	</script>
+
+</widget>

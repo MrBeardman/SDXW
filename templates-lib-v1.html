@@ -1,0 +1,235 @@
+<widget>
+
+	<!-- CONFIG -->
+	<script type="application/json" id="widget-config">
+		{
+		"hrid": "templates-lib-v1",
+		"display": "Templates Library V1",
+		"description": "This allows widgets to provide html based templates for creating elements like for news lists etc.",
+		"category": "SDX",
+		"layoutUnique": true,
+		"type": "library",
+		"loadIndex": 20,
+		"icon": "code-not-equal-variant",
+		"iconColor": "#B600B6"
+		}
+	</script>
+
+	<!-- SCRIPT -->
+	<script id="widget-script">
+
+		(function () {
+
+			// Uses
+			const sdx = window.sdx;
+			const api = sdx.api;
+			const dlApi = api.getApi();
+
+			// Package
+			const templates = sdx.templates = {};
+
+			// Globals
+			templates.ATTRIBUTE_TEMPLATE_TEXT = 'template-text';
+			templates.ATTRIBUTE_TEMPLATE_LINK = 'template-link';
+			templates.ATTRIBUTE_TEMPLATE_ROUTE = 'template-route';
+			templates.ATTRIBUTE_TEMPLATE_CLASS = 'template-class';
+			templates.ATTRIBUTE_TEMPLATE_VISIBLE = 'template-visible';
+			templates.ATTRIBUTE_TEMPLATE_BACKGROUND_IMAGE = 'template-background-image';
+
+			/**
+			 * Apply the widget-text data attribute to replace the inner html for those elements
+			 * @param {Element} templateInstance
+			 * @param {string} attribute
+			 * @param {Object} ref
+			 * @param {Function} func
+			 * @returns {undefined}
+			 */
+			function _apply(templateInstance, attribute, ref, func)
+			{
+				var elements = templateInstance.querySelectorAll('[' + attribute + ']');
+
+				for (const element of elements) {
+
+					var config = element.getAttribute(attribute);
+					var value = ref[config];
+
+					if (value !== null && value !== undefined) {
+						func(element, value);
+					}
+				}
+			}
+
+			/**
+			 * Apply the widget-text data attribute to replace the inner html for those elements
+			 * @param {Element} templateInstance
+			 * @param {Object} ref
+			 * @returns {undefined}
+			 */
+			function _applyText(templateInstance, ref)
+			{
+				_apply(templateInstance, templates.ATTRIBUTE_TEMPLATE_TEXT, ref, function (element, value) {
+					element.innerHTML = value;
+				});
+			}
+
+			/**
+			 * Apply the widget-link data attribute to replace the href for those elements
+			 * @param {Element} templateInstance
+			 * @param {Object} ref
+			 * @returns {undefined}
+			 */
+			function _applyLink(templateInstance, ref)
+			{
+				_apply(templateInstance, templates.ATTRIBUTE_TEMPLATE_LINK, ref, function (element, value) {
+					element.setAttribute("href", value);
+				});
+			}
+
+			/**
+			 * Apply the template-route data attribute to set the href and navigate through the app router instead of letting the browser reload the whole page
+			 * @param {Element} templateInstance
+			 * @param {Object} ref
+			 * @returns {undefined}
+			 */
+			function _applyRoute(templateInstance, ref)
+			{
+				_apply(templateInstance, templates.ATTRIBUTE_TEMPLATE_ROUTE, ref, function (element, value) {
+
+					element.setAttribute("href", value);
+
+					element.addEventListener('click', function (event) {
+
+						var router = window.parent && window.parent.Application && window.parent.Application.router;
+
+						// let the browser open a new tab when a modifier is held
+						if (!router || event.metaKey || event.ctrlKey || event.shiftKey) {
+							return;
+						}
+
+						event.preventDefault();
+						router.push(value);
+					});
+				});
+			}
+
+			/**
+			 * Apply the widget-class data attribute to set a class from the template data
+			 * @param {Element} templateInstance
+			 * @param {Object} ref
+			 * @returns {undefined}
+			 */
+			function _applyClass(templateInstance, ref)
+			{
+				_apply(templateInstance, templates.ATTRIBUTE_TEMPLATE_CLASS, ref, function (element, value) {
+					element.classList.add(value);
+				});
+			}
+
+			/**
+			 * Apply the widget-visible data attribute to set the visibility for those elements by adding class "d-none".
+			 * @param {Element} templateInstance
+			 * @param {Object} ref
+			 * @returns {undefined}
+			 */
+			function _applyVisible(templateInstance, ref)
+			{
+				_apply(templateInstance, templates.ATTRIBUTE_TEMPLATE_VISIBLE, ref, function (element, value) {
+					if (value !== 'true' && value !== true) {
+						element.classList.add("d-none");
+					}
+				});
+			}
+
+			/**
+			 * Apply the widget-background-image data attribute to set the background image cia css for those elements.
+			 * @param {Element} templateInstance
+			 * @param {Object} ref
+			 * @returns {undefined}
+			 */
+			function _applyBackgroundImage(templateInstance, ref)
+			{
+				_apply(templateInstance, templates.ATTRIBUTE_TEMPLATE_BACKGROUND_IMAGE, ref, function (element, value) {
+					element.style.backgroundImage = 'url(' + dlApi.contents.streamAsGetURL(value, true) + ')';
+				});
+			}
+
+			/**
+			 * The Template class allowing to use elements for templating
+			 */
+			templates.Template = (function ()
+			{
+
+				function Template(root)
+				{
+					this._root = root;
+				}
+
+				/**
+				 * Create a new Template instance from a given element referencing the template structure
+				 * @param {Element} root
+				 * @returns {Template}
+				 */
+				Template.getInstance = function (root)
+				{
+					return new Template(root);
+				};
+
+				/**
+				 * Append the created instance of templates with data to container
+				 * @param {Array} data
+				 * @param {Element} container The container to append the new instances of templates
+				 * @returns {undefined}
+				 */
+				Template.prototype.append = function (data, container)
+				{
+					this.process(data, function (tInst) {
+						container.append(tInst);
+					});
+				};
+
+				/**
+				 * Create
+				 * @param {Array} data
+				 * @param {Function} callback callback(Element tInst)
+				 * @returns {undefined}
+				 */
+				Template.prototype.process = function (data, callback)
+				{
+					for (const entry of data) {
+
+						// Create instance of the template with given data
+						var tInst = this._root.cloneNode(true);
+						// Make instance visible
+						tInst.classList.remove('d-none');
+
+						// Apply all data attribute for that template instance
+						_applyClass(tInst, entry);
+						_applyText(tInst, entry);
+						_applyLink(tInst, entry);
+						_applyRoute(tInst, entry);
+						_applyVisible(tInst, entry);
+						_applyBackgroundImage(tInst, entry);
+
+						callback(tInst, entry);
+					}
+				};
+
+				return Template;
+
+			})();
+
+			/**
+			 * Extend Widget to return a Template instance for the given selector
+			 * @param {String} selector gets the template root
+			 * @returns {Template}
+			 */
+			sdx.Widget.prototype.createTemplate = function (selector)
+			{
+				return templates.Template.getInstance(this.findElement(selector));
+			};
+
+		})();
+
+	</script>
+
+</widget>

@@ -1,0 +1,138 @@
+<!--
+A heading: level (h1-h6), text, font size, bold/italic toggles, color and alignment.
+The heading level is the one option CSS cannot express (it is the tag name), so onLoad swaps the
+placeholder for the chosen tag. Everything else is data-attributes-lib + CSS, as in label-widget-v1.
+All option labels are localized (en/de).
+//-->
+<widget>
+
+	<!-- CONFIG -->
+	<script type="application/json" id="widget-config">
+		{
+		"hrid": "heading-widget-v1",
+		"display": "Heading Widget V1",
+		"description": "A heading - level h1-h6, text, font size, bold, italic, color, alignment.",
+		"category": "AI Examples/Basic",
+		"type": "widget",
+		"layoutUnique": false,
+		"icon": "format-header-pound",
+		"iconColor": "#96C21F",
+		"options": [
+			{
+				"key": "level",
+				"label": { "en": "Heading Level", "de": "Überschriftsebene" },
+				"type": "select",
+				"default": "h2",
+				"options": [
+					{ "label": { "en": "H1", "de": "H1" }, "value": "h1" },
+					{ "label": { "en": "H2", "de": "H2" }, "value": "h2" },
+					{ "label": { "en": "H3", "de": "H3" }, "value": "h3" },
+					{ "label": { "en": "H4", "de": "H4" }, "value": "h4" },
+					{ "label": { "en": "H5", "de": "H5" }, "value": "h5" },
+					{ "label": { "en": "H6", "de": "H6" }, "value": "h6" }
+				]
+			},
+			{ "key": "display", "label": { "en": "Text", "de": "Text" }, "type": "text", "default": "Heading" },
+			{ "key": "font-size", "label": { "en": "Font Size (px, empty = default for level)", "de": "Schriftgröße (px, leer = Standard der Ebene)" }, "type": "text", "default": "" },
+			{ "key": "font-bold", "label": { "en": "Bold", "de": "Fett" }, "type": "boolean", "default": "true" },
+			{ "key": "font-italic", "label": { "en": "Italic", "de": "Kursiv" }, "type": "boolean", "default": "false" },
+			{ "key": "text-color", "label": { "en": "Font Color", "de": "Schriftfarbe" }, "type": "color", "default": "#213B33" },
+			{
+				"key": "text-align",
+				"label": { "en": "Alignment", "de": "Ausrichtung" },
+				"type": "select",
+				"default": "start",
+				"options": [
+					{ "label": { "en": "Left", "de": "Links" }, "value": "start" },
+					{ "label": { "en": "Center", "de": "Mittig" }, "value": "center" },
+					{ "label": { "en": "Right", "de": "Rechts" }, "value": "end" }
+				]
+			}
+		]
+		}
+	</script>
+
+	<!-- STYLE -->
+	<style id="widget-styles">
+
+		/* Registered with a typed syntax so that an EMPTY font-size option (which turns the calc()
+		   below into `calc( * 1px)`, invalid) computes to the initial 0px instead of poisoning the
+		   font-size declaration. The style query on #heading keys on that 0px. */
+		@property --heading-font-size {
+			syntax: "<length>";
+			inherits: true;
+			initial-value: 0px;
+		}
+
+		@scope {
+
+			#widget-body {
+
+				/* start/center/end follow the reading direction - see label-widget-v1 */
+				text-align: var(--widget-text-align);
+
+				/* bare number in the option, unit appended here; empty option -> 0px (see @property) */
+				--heading-font-size: calc(var(--widget-font-size) * 1px);
+
+				#heading {
+					margin: 0;
+					font-weight: normal;
+					color: var(--widget-text-color);
+
+					/* Only set a font-size when the option is filled in. With it empty (0px) no
+					   font-size is declared at all, so the h1-h6 tag keeps the page's own size
+					   for that level. */
+					@container not style(--heading-font-size: 0px) {
+						font-size: var(--heading-font-size);
+					}
+
+					/* Boolean options arrive as the token `true`/`false` - see label-widget-v1 */
+					@container style(--widget-font-bold: true) {
+						font-weight: bold;
+					}
+
+					@container style(--widget-font-italic: true) {
+						font-style: italic;
+					}
+				}
+			}
+		}
+
+	</style>
+
+	<!-- TAGS -->
+	<!-- No loading/active/error state machine - synchronous and config-only (see patterns.md).
+	     The placeholder is an h2 (the default level) so the widget is still a heading if the tag
+	     swap below never runs. -->
+	<div id="widget-body">
+		<h2 id="heading" widget-text="display"></h2>
+	</div>
+
+	<!-- SCRIPT -->
+	<script id="widget-script">
+
+		(function () {
+
+			// Uses
+			const sdx = window.sdx;
+
+			// Widget
+			const widget = sdx.Widget.getInstance();
+
+			// The tag name is the one option CSS can't apply. data-attributes-lib has already filled
+			// the placeholder by now (preload runs before onLoad), so only the tag changes.
+			widget.onLoad(function () {
+				const placeholder = widget.findElement('#heading');
+				const heading = document.createElement(widget.getConfig('level') || 'h2');
+				heading.id = 'heading';
+				heading.innerHTML = placeholder.innerHTML;
+				placeholder.replaceWith(heading);
+			});
+
+			widget.ready();
+
+		})();
+
+	</script>
+
+</widget>
