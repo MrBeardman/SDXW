@@ -1,6 +1,7 @@
 <!--
-A user card: profile image, name, email and phone of one SDX user, picked by user id (plain text
-for now - Ben plans a "userSelector" editor type later, which only swaps the option's type).
+A user card: profile image, name, email and phone of one SDX user. The user is typed in as an email,
+login or user id - a config `select` can only list fixed choices, so a real user picker needs the
+"userSelector" editor type Ben plans; once that exists only the option's type changes.
 Layout, image shape/size, card frame and every field toggle are declarative (CSS vars + style
 container queries + widget-visible); the script only loads the user and fills the card.
 "On error: hide" is pure CSS too - it hides the error block, nothing in JS knows about it.
@@ -19,7 +20,7 @@ container queries + widget-visible); the script only loads the user and fills th
 		"icon": "card-account-details-outline",
 		"iconColor": "#0069FF",
 		"options": [
-			{ "key": "user-id", "label": { "en": "User ID", "de": "Benutzer-ID" }, "type": "text", "default": "" },
+			{ "key": "user", "label": { "en": "User (email, login or ID)", "de": "Benutzer (E-Mail, Login oder ID)" }, "type": "text", "default": "" },
 			{ "key": "layout", "label": { "en": "Layout", "de": "Layout" }, "type": "select", "default": "row", "options": [
 				{ "label": { "en": "Image left", "de": "Bild links" }, "value": "row" },
 				{ "label": { "en": "Image on top", "de": "Bild oben" }, "value": "column" }
@@ -52,8 +53,7 @@ container queries + widget-visible); the script only loads the user and fills th
 		{
 		"de": {
 			"loading": "Benutzer wird geladen…",
-			"noUserId": "Keine Benutzer-ID eingestellt.",
-			"invalidUserId": "Die Benutzer-ID ist ungültig.",
+			"noUser": "Kein Benutzer eingestellt.",
 			"userNotFound": "Dieser Benutzer existiert nicht.",
 			"loadFailed": "Der Benutzer konnte nicht geladen werden.",
 			"emailTitle": "E-Mail an $display",
@@ -61,8 +61,7 @@ container queries + widget-visible); the script only loads the user and fills th
 		},
 		"en": {
 			"loading": "Loading user…",
-			"noUserId": "No user ID set.",
-			"invalidUserId": "The user ID isn't valid.",
+			"noUser": "No user set.",
 			"userNotFound": "This user doesn't exist.",
 			"loadFailed": "The user couldn't be loaded.",
 			"emailTitle": "Email $display",
@@ -231,38 +230,60 @@ container queries + widget-visible); the script only loads the user and fills th
 			const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 			/**
-			 * Loads one user by id and turns every failure into a localized Error, so the shared
-			 * error state shows a message a page editor can act on instead of a raw server string.
-			 * The id format is checked here first: the server's own "not a UUID" reply is English-only.
-			 * The typed id is never echoed into a message - _handleError writes it with innerHTML.
-			 * @todo (library candidate for api-lib-v1): api.getUserById(id) - api-lib only exposes
-			 * a batch helper as an unapplied draft (_versions/_shared-libraries/), not a single get
+			 * Loads one user from whatever the page editor typed: a user id, an email or a login.
+			 * Every lookup that finds nobody answers 404 ENTITY_NOT_FOUND (confirmed live for get,
+			 * getByEmail and getByLogin), which becomes one localized "doesn't exist" message
+			 * instead of the server's English-only text. The typed value is never echoed into a
+			 * message - sdx-lib writes error messages with innerHTML.
+			 * @todo (library candidate for api-lib-v1): api.getUser(idEmailOrLogin)
 			 * @param {Widget} widget
-			 * @param {String} userId
+			 * @param {String} user id, email or login
 			 * @returns {Promise<Object>} the User entity
 			 */
-			async function _loadUser(widget, userId)
+			async function _loadUser(widget, user)
 			{
-				if (!userId) {
-					throw new Error(widget.resolveL10N('noUserId', {}));
-				}
-				if (!UUID_PATTERN.test(userId)) {
-					throw new Error(widget.resolveL10N('invalidUserId', {}));
+				if (!user) {
+					throw new Error(widget.resolveL10N('noUser', {}));
 				}
 
+				const users = api.getApi().users;
 				try {
-					return await api.getApi().users.get(userId);
+					if (UUID_PATTERN.test(user)) {
+						return await users.get(user);
+					}
+					if (user.indexOf('@') === -1) {
+						return await users.getByLogin(user);
+					}
+					// Some instances use the email address as the login too, so an "@" value that
+					// isn't anyone's email still gets one try as a login
+					try {
+						return await users.getByEmail(user);
+					} catch (error) {
+						if (!_isNotFound(error)) {
+							throw error;
+						}
+						return await users.getByLogin(user);
+					}
 				} catch (error) {
-					// Confirmed live: a missing id answers 404 with errorCode ENTITY_NOT_FOUND.
-					// What a user without read permission gets is not confirmed yet, so it lands
-					// in the generic message rather than a guessed one.
-					const response = error && error.xhr && error.xhr.responseJSON;
-					if (response && response.errorCode === 'ENTITY_NOT_FOUND') {
+					if (_isNotFound(error)) {
 						throw new Error(widget.resolveL10N('userNotFound', {}));
 					}
-					console.error('user-card-widget: loading user ' + userId + ' failed', error);
+					// A reader without permission for this user isn't confirmed yet (needs a
+					// non-admin login to test), so it lands in the generic message, not a guessed one
+					console.error('user-card-widget: loading user "' + user + '" failed', error);
 					throw new Error(widget.resolveL10N('loadFailed', {}));
 				}
+			}
+
+			/**
+			 * Whether a dlApi error is the backend's "no such entity" answer.
+			 * @param {Error} error
+			 * @returns {Boolean}
+			 */
+			function _isNotFound(error)
+			{
+				const response = error && error.xhr && error.xhr.responseJSON;
+				return !!response && response.errorCode === 'ENTITY_NOT_FOUND';
 			}
 
 			/**
@@ -307,7 +328,7 @@ container queries + widget-visible); the script only loads the user and fills th
 
 				widget.findElement('[widget-state="loading"]').textContent = widget.resolveL10N('loading', {});
 
-				const user = await _loadUser(widget, widget.getConfig('user-id'));
+				const user = await _loadUser(widget, widget.getConfig('user'));
 				const custom = user.customData || {};
 				const display = user.display || user.login || '';
 

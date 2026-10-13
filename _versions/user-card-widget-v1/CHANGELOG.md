@@ -36,5 +36,19 @@ First build from Ben's "User Card" request (2026-09-18 list), 2026-10-13.
 **Known, not this widget's to fix**: sdx-lib's `ready()` runs `onReady` on both window `load`
 and `setTimeout(0)`, so `users.get` is called twice per instance (true for every widget).
 
+## rev2-user-by-email-login-or-id.html
+
+Same day, before any upload (so the hrid stays `user-card-widget-v1`). Honza doesn't know other
+users' UUIDs, and a `select` can't list server users (its choices are fixed in the config), so:
+
+- The `user-id` option became **`user`**, "User (email, login or ID)". A UUID goes to
+  `users.get`; anything without `@` to `users.getByLogin`; anything with `@` to
+  `users.getByEmail`, then `getByLogin` if no email matches (some instances use the email as
+  the login). Confirmed live on demo: `getByEmail` is case-insensitive, `getByLogin` is exact,
+  and all three answer an unknown value with 404 `ENTITY_NOT_FOUND`.
+- The client-side "invalid id" message is gone (any non-UUID text is now a valid login to try);
+  `noUserId` is now `noUser`.
+- Harness: + email in capitals, login, an email-shaped login, unknown email (10 cases, en + de).
+
 **Open**: what `users.get` throws for a non-admin reading someone else's profile - test with a
 non-admin login before relying on the generic message.
