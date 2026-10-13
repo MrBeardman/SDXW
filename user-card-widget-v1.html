@@ -1,0 +1,346 @@
+<!--
+A user card: profile image, name, email and phone of one SDX user, picked by user id (plain text
+for now - Ben plans a "userSelector" editor type later, which only swaps the option's type).
+Layout, image shape/size, card frame and every field toggle are declarative (CSS vars + style
+container queries + widget-visible); the script only loads the user and fills the card.
+"On error: hide" is pure CSS too - it hides the error block, nothing in JS knows about it.
+//-->
+<widget>
+
+	<!-- CONFIG -->
+	<script type="application/json" id="widget-config">
+		{
+		"hrid": "user-card-widget-v1",
+		"display": "User Card Widget V1",
+		"description": "Shows one user's profile image, name, email and phone as a card.",
+		"category": "AI Examples/Cards",
+		"type": "widget",
+		"layoutUnique": false,
+		"icon": "card-account-details-outline",
+		"iconColor": "#0069FF",
+		"options": [
+			{ "key": "user-id", "label": { "en": "User ID", "de": "Benutzer-ID" }, "type": "text", "default": "" },
+			{ "key": "layout", "label": { "en": "Layout", "de": "Layout" }, "type": "select", "default": "row", "options": [
+				{ "label": { "en": "Image left", "de": "Bild links" }, "value": "row" },
+				{ "label": { "en": "Image on top", "de": "Bild oben" }, "value": "column" }
+			] },
+			{ "key": "image-shape", "label": { "en": "Image shape", "de": "Bildform" }, "type": "select", "default": "50%", "options": [
+				{ "label": { "en": "Circle", "de": "Kreis" }, "value": "50%" },
+				{ "label": { "en": "Rounded", "de": "Abgerundet" }, "value": "16px" },
+				{ "label": { "en": "Square", "de": "Quadrat" }, "value": "0px" }
+			] },
+			{ "key": "image-size", "label": { "en": "Image size (px)", "de": "Bildgröße (px)" }, "type": "text", "default": "72" },
+			{ "key": "show-email", "label": { "en": "Show email", "de": "E-Mail anzeigen" }, "type": "boolean", "default": "true" },
+			{ "key": "show-phone", "label": { "en": "Show phone", "de": "Telefon anzeigen" }, "type": "boolean", "default": "true" },
+			{ "key": "show-description", "label": { "en": "Show description", "de": "Beschreibung anzeigen" }, "type": "boolean", "default": "false" },
+			{ "key": "accent-color", "label": { "en": "Accent color", "de": "Akzentfarbe" }, "type": "color", "default": "#0069FF" },
+			{ "key": "text-color", "label": { "en": "Text color", "de": "Textfarbe" }, "type": "color", "default": "#0F1B2D" },
+			{ "key": "card-style", "label": { "en": "Card style", "de": "Kartenstil" }, "type": "select", "default": "card", "options": [
+				{ "label": { "en": "Card with shadow", "de": "Karte mit Schatten" }, "value": "card" },
+				{ "label": { "en": "Plain", "de": "Ohne Rahmen" }, "value": "plain" }
+			] },
+			{ "key": "on-error", "label": { "en": "If the user can't be loaded", "de": "Wenn der Benutzer nicht geladen werden kann" }, "type": "select", "default": "message", "options": [
+				{ "label": { "en": "Show a message", "de": "Hinweis anzeigen" }, "value": "message" },
+				{ "label": { "en": "Hide the widget", "de": "Widget ausblenden" }, "value": "hide" }
+			] }
+		]
+		}
+	</script>
+
+	<!-- L10N -->
+	<script type="application/json" id="widget-l10n">
+		{
+		"de": {
+			"loading": "Benutzer wird geladen…",
+			"noUserId": "Keine Benutzer-ID eingestellt.",
+			"invalidUserId": "Die Benutzer-ID ist ungültig.",
+			"userNotFound": "Dieser Benutzer existiert nicht.",
+			"loadFailed": "Der Benutzer konnte nicht geladen werden.",
+			"emailTitle": "E-Mail an $display",
+			"phoneTitle": "$display anrufen"
+		},
+		"en": {
+			"loading": "Loading user…",
+			"noUserId": "No user ID set.",
+			"invalidUserId": "The user ID isn't valid.",
+			"userNotFound": "This user doesn't exist.",
+			"loadFailed": "The user couldn't be loaded.",
+			"emailTitle": "Email $display",
+			"phoneTitle": "Call $display"
+		}
+		}
+	</script>
+
+	<!-- STYLE -->
+	<style id="widget-styles">
+
+		@scope {
+
+			#widget-body {
+
+				/* secondary text is the main text color, faded - so one option covers a plain
+				   card on a dark page section as well as the default white card */
+				--uc-text: var(--widget-text-color);
+				--uc-muted: color-mix(in srgb, var(--widget-text-color) 68%, transparent);
+				--uc-image-size: calc(var(--widget-image-size) * 1px);
+
+				/* room for the card shadow, which reaches ~22px below and ~14px to the sides -
+				   the host gives the widget no space of its own (patterns.md) */
+				padding: 4px 14px 22px;
+
+				#card {
+					display: flex;
+					flex-direction: var(--widget-layout);
+					align-items: center;
+					gap: 20px;
+					padding: 24px;
+					border-radius: var(--widget-border-radius);
+					background: var(--widget-default-background-color);
+					box-shadow: 0 8px 24px -10px rgba(15, 27, 45, .25);
+					color: var(--uc-text);
+
+					@container style(--widget-layout: column) {
+						text-align: center;
+					}
+
+					@container style(--widget-card-style: plain) {
+						padding: 0;
+						background: transparent;
+						box-shadow: none;
+					}
+				}
+
+				#avatar {
+					flex: none;
+					display: grid;
+					place-items: center;
+					width: var(--uc-image-size);
+					height: var(--uc-image-size);
+					border-radius: var(--widget-image-shape);
+					/* text paints over a background image, so the initials are made transparent
+					   once a photo is set (.has-image) and only show for users without one */
+					background: var(--widget-accent-color) center / cover no-repeat;
+					color: #fff;
+					font-size: calc(var(--uc-image-size) * .36);
+					font-weight: 600;
+					letter-spacing: .02em;
+					overflow: hidden;
+
+					&.has-image {
+						color: transparent;
+					}
+				}
+
+				#info {
+					display: flex;
+					flex-direction: column;
+					gap: 6px;
+					min-width: 0;
+				}
+
+				#name {
+					margin: 0;
+					font-size: 20px;
+					font-weight: 600;
+					line-height: 1.25;
+					color: var(--uc-text);
+				}
+
+				#description {
+					margin: 0;
+					font-size: 14px;
+					color: var(--uc-muted);
+				}
+
+				.uc-contact {
+					display: inline-flex;
+					align-items: center;
+					gap: 8px;
+					font-size: 15px;
+					color: var(--uc-muted);
+					text-decoration: none;
+					/* long email addresses must not push the card wider than its slot */
+					overflow-wrap: anywhere;
+
+					@container style(--widget-layout: column) {
+						justify-content: center;
+					}
+
+					.mdi {
+						color: var(--widget-accent-color);
+						font-size: 18px;
+					}
+
+					&:hover {
+						color: var(--widget-accent-color);
+					}
+				}
+
+				[widget-state="loading"] {
+					padding: 24px;
+					color: var(--uc-muted);
+				}
+
+				@container style(--widget-on-error: hide) {
+					[widget-state="error"] {
+						display: none;
+					}
+
+					/* drop the shadow room too, so a hidden card leaves no gap in the layout */
+					&:has(> [widget-state="error"]:not(.d-none)) {
+						padding: 0;
+					}
+				}
+			}
+		}
+
+	</style>
+
+	<!-- TAGS -->
+	<div id="widget-body">
+		<div widget-state="loading">Loading user…</div>
+		<div id="card" class="d-none" widget-state="active">
+			<div id="avatar" aria-hidden="true"></div>
+			<div id="info">
+				<h3 id="name">-</h3>
+				<p id="description" widget-visible="show-description"></p>
+				<a id="email" class="uc-contact" widget-visible="show-email">
+					<i class="mdi mdi-email-outline" aria-hidden="true"></i><span></span>
+				</a>
+				<a id="phone" class="uc-contact" widget-visible="show-phone">
+					<i class="mdi mdi-phone-outline" aria-hidden="true"></i><span></span>
+				</a>
+			</div>
+		</div>
+		<div class="d-none widget-error" widget-state="error">
+			<small>An error occured in widget</small>
+			<h2 widget-error-message></h2>
+		</div>
+	</div>
+
+	<!-- SCRIPT -->
+	<script id="widget-script">
+
+		(function () {
+
+			// Uses
+			const sdx = window.sdx;
+			const api = sdx.api;
+
+			// Globals
+			const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+			/**
+			 * Loads one user by id and turns every failure into a localized Error, so the shared
+			 * error state shows a message a page editor can act on instead of a raw server string.
+			 * The id format is checked here first: the server's own "not a UUID" reply is English-only.
+			 * The typed id is never echoed into a message - _handleError writes it with innerHTML.
+			 * @todo (library candidate for api-lib-v1): api.getUserById(id) - api-lib only exposes
+			 * a batch helper as an unapplied draft (_versions/_shared-libraries/), not a single get
+			 * @param {Widget} widget
+			 * @param {String} userId
+			 * @returns {Promise<Object>} the User entity
+			 */
+			async function _loadUser(widget, userId)
+			{
+				if (!userId) {
+					throw new Error(widget.resolveL10N('noUserId', {}));
+				}
+				if (!UUID_PATTERN.test(userId)) {
+					throw new Error(widget.resolveL10N('invalidUserId', {}));
+				}
+
+				try {
+					return await api.getApi().users.get(userId);
+				} catch (error) {
+					// Confirmed live: a missing id answers 404 with errorCode ENTITY_NOT_FOUND.
+					// What a user without read permission gets is not confirmed yet, so it lands
+					// in the generic message rather than a guessed one.
+					const response = error && error.xhr && error.xhr.responseJSON;
+					if (response && response.errorCode === 'ENTITY_NOT_FOUND') {
+						throw new Error(widget.resolveL10N('userNotFound', {}));
+					}
+					console.error('user-card-widget: loading user ' + userId + ' failed', error);
+					throw new Error(widget.resolveL10N('loadFailed', {}));
+				}
+			}
+
+			/**
+			 * Up to two initials from the display name ("Jan Matyáš" -> "JM"), shown when the
+			 * user has no profile image.
+			 * @param {String} display
+			 * @returns {String}
+			 */
+			function _getInitials(display)
+			{
+				const words = (display || '').trim().split(/\s+/).filter(Boolean);
+				const initials = words.length > 1
+					? words[0].charAt(0) + words[words.length - 1].charAt(0)
+					: (words[0] || '?').charAt(0);
+				return initials.toUpperCase();
+			}
+
+			/**
+			 * Fills a contact row (link + label), or hides it when the user has no such value.
+			 * Hiding only ever adds d-none, so it can't undo a widget-visible "off" from the config.
+			 * @param {HTMLElement} element the <a> row
+			 * @param {String} value shown text
+			 * @param {String} href
+			 * @param {String} title
+			 * @returns {undefined}
+			 */
+			function _fillContact(element, value, href, title)
+			{
+				if (!value) {
+					element.classList.add('d-none');
+					return;
+				}
+				element.querySelector('span').textContent = value;
+				element.setAttribute('href', href);
+				element.setAttribute('title', title);
+			}
+
+			// Widget
+			const widget = sdx.Widget.getInstance();
+
+			widget.onLoad(async function () {
+
+				widget.findElement('[widget-state="loading"]').textContent = widget.resolveL10N('loading', {});
+
+				const user = await _loadUser(widget, widget.getConfig('user-id'));
+				const custom = user.customData || {};
+				const display = user.display || user.login || '';
+
+				widget.findElement('#name').textContent = display;
+
+				const description = widget.findElement('#description');
+				description.textContent = user.description || '';
+				if (!user.description) {
+					description.classList.add('d-none');
+				}
+
+				// Same source the SDX navbar uses for its own avatar: customData.image is a content id
+				const avatar = widget.findElement('#avatar');
+				avatar.textContent = _getInitials(display);
+				if (custom.image) {
+					api.setBackgroundImage(avatar, custom.image);
+					avatar.classList.add('has-image');
+				}
+
+				_fillContact(widget.findElement('#email'), user.email,
+					'mailto:' + user.email,
+					widget.resolveL10N('emailTitle', {display: display}));
+
+				// The profile form stores the phone as typed; tel: links only want digits and a leading +
+				_fillContact(widget.findElement('#phone'), custom.phoneNumber,
+					'tel:' + String(custom.phoneNumber || '').replace(/[^\d+]/g, ''),
+					widget.resolveL10N('phoneTitle', {display: display}));
+			});
+
+			widget.ready();
+
+		})();
+
+	</script>
+
+</widget>
