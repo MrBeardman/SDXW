@@ -164,6 +164,30 @@ A User object's fields (live-confirmed): `id`, `display`, `email`, `login`, `act
 `find`/`getMany` — worth reaching for directly when you have one of those three values in hand
 and don't need a LIKE search or a batch.
 
+## Users and spaces: what a card widget needs (confirmed live on demo.sdx-app.com, 2026-10-13)
+
+- **Profile image**: `user.customData.image` is a content id, shown via
+  `dlApi.contents.streamAsGetURL(id, true)` - read from the SDX navbar's own `getAvatarUrl()`.
+  `api.setBackgroundImage(el, id)` does exactly this. No image set = no `image` key.
+- **Phone**: `user.customData.phoneNumber`, stored as typed in the profile form.
+- **Lookup by what a page editor knows**: `users.getByEmail` is **case-insensitive**,
+  `users.getByLogin` is exact; logins don't have to look like emails. Each user lookup
+  (`get`, `getByEmail`, `getByLogin`) answers an unknown value with a 404.
+- **Error shape** (every `dlApi` call): the thrown Error has `isServerError: true` and
+  `xhr.responseJSON = {error, errorClass, errorCode}`. Not found is
+  `errorCode: "ENTITY_NOT_FOUND"` (`de.s42.dl.services.EntityNotFound`); a malformed UUID is a
+  separate error, "Parameter id is not a UUID". `error.message` is the server's English text -
+  map `errorCode` to your own l10n strings instead of showing it.
+- **Space entity** (`spaces.get(id)`, same shape as one `spaces.find` result): `id`, `name`,
+  `display`, `description` (string), `hidden`, `created`/`changed`/`createdBy`/`changedBy`/
+  `ownedBy`, `type`, and `customData` with `icon` (mdi name), `color`, `backgroundImage`
+  (content id) and `lastActivity`. The app opens a space at `/spaces/:id`.
+- **Not yet confirmed**: what a non-admin gets when reading a user or space they have no
+  permission for (the demo login is an admin).
+- **No "pick a user/space" option type exists.** A `select` holds fixed choices written into
+  the config, so it can't list server users. Ben plans `userSelector`/`spaceSelector` editor
+  types; until then a card takes a typed value (user-card-widget-v1 accepts email, login or id).
+
 ## Still-open items
 
 1. **Exact SQL LIKE wildcard/case-sensitivity behavior** for `contentName` and the other `like`

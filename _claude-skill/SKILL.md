@@ -77,6 +77,11 @@ This is the single most important file; nearly every bug traces back to misunder
    (`<!doctype html>`, `window.parent.SspaLib`, `widget-schema` script) — do NOT copy their
    conventions into new work; they're kept only for historical reference unless the user says
    otherwise.
+4b. **Data card widgets** (`category: "AI Examples/Cards"`, top-level `Widgets/` folder):
+   `user-card-widget-v1.html` is the reference for a widget that loads one entity by a typed
+   value - loading/active/error states, `errorCode`-based localized messages, initials fallback,
+   and a CSS-only "if it can't be loaded: show a message / hide the widget" select. Start the
+   Space Card and any other single-entity card from it. See content-api.md, "Users and spaces".
 5. **Test/scratch widgets** (`test-bs-v1.html`, `test-jm-v1.html`, `jm-test-widget-v1.html`)
    are personal sandboxes by team members, not canonical examples — don't copy their sloppier
    bits (e.g. duplicate hrid in jm-test-widget-v1.html).
